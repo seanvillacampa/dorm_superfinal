@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Dorm Manager — Database Design</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Calibri,Arial,sans-serif;font-size:10.5pt;color:#1e293b;background:white;line-height:1.6}
+  /* ── Print layout ── */
+  @page{size:A4 landscape;margin:15mm}
+  @page erd-page{size:A3 landscape;margin:10mm}
+  @media print{
+    .page-break{page-break-after:always;break-after:page}
+    .erd-section{page-break-before:always}
+    body{font-size:9.5pt}
+    .no-print{display:none}
+  }
+  /* ── Cover ── */
+  .cover{background:linear-gradient(135deg,#1e40af,#1d4ed8);color:white;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px}
+  .cover .logo{width:80px;height:80px;background:white;border-radius:16px;display:flex;align-items:center;justify-content:center;color:#1d4ed8;font-size:36pt;font-weight:900;margin:0 auto 24px}
+  .cover h1{font-size:32pt;font-weight:800;margin-bottom:8px}
+  .cover p{font-size:14pt;opacity:.8;margin-bottom:4px}
+  .cover .meta{font-size:10pt;opacity:.5;margin-top:20px}
+  /* ── Sections ── */
+  .section{padding:40px 50px;max-width:1100px;margin:0 auto}
+  h2{font-size:16pt;color:#1d4ed8;font-weight:800;border-bottom:3px solid #bfdbfe;padding-bottom:6px;margin:36px 0 14px}
+  h3{font-size:12pt;color:#1e293b;font-weight:700;margin:22px 0 8px}
+  h4{font-size:10.5pt;color:#374151;font-weight:600;margin:14px 0 4px}
+  p{margin:6px 0}
+  ul,ol{padding-left:20px;margin:6px 0}
+  li{margin:4px 0}
+  /* ── Tables ── */
+  table{width:100%;border-collapse:collapse;margin:10px 0 18px;font-size:9.5pt}
+  th{background:#1d4ed8;color:white;padding:7px 10px;text-align:left;font-weight:600}
+  td{padding:6px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+  tr:nth-child(even) td{background:#f8fafc}
+  .pk{color:#dc2626;font-weight:bold;font-family:Consolas,monospace}
+  .fk{color:#2563eb;font-weight:bold;font-family:Consolas,monospace}
+  code{background:#f1f5f9;border-radius:3px;padding:1px 5px;font-family:Consolas,monospace;font-size:9pt}
+  .note{background:#eff6ff;border-left:4px solid #3b82f6;padding:10px 14px;margin:10px 0;border-radius:0 6px 6px 0;font-size:9.5pt}
+  /* ── ERD section ── */
+  .erd-section{padding:20px}
+  .erd-section h2{font-size:14pt;margin-bottom:10px}
+  .erd-wrap{width:100%;overflow:hidden}
+  .erd-wrap svg{width:100%;height:auto;display:block}
+  /* ── Print button ── */
+  .print-btn{position:fixed;bottom:24px;right:24px;background:#1d4ed8;color:white;border:none;padding:12px 24px;border-radius:8px;font-size:12pt;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:999}
+  .print-btn:hover{background:#1e40af}
+  /* ── TOC ── */
+  .toc{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px 28px;margin:20px 0}
+  .toc h3{color:#1d4ed8;margin:0 0 10px}
+  .toc ol{padding-left:16px}
+  .toc li{margin:4px 0}
+  .toc a{color:#1d4ed8;text-decoration:none}
+</style>
+</head>
+<body>
+
+<!-- ═══ PRINT BUTTON ═══ -->
+<button class="print-btn no-print" onclick="window.print()">🖨 Print / Save as PDF</button>
+
+<!-- ═══ COVER PAGE ═══ -->
+<div class="cover page-break">
+  <div class="logo">D</div>
+  <h1>Dorm Manager</h1>
+  <p style="font-size:18pt;font-weight:700">Database Design Document</p>
+  <p>Entity Relationship Diagram &amp; Table Specifications</p>
+  <p class="meta">Version 1.0 &nbsp;·&nbsp; September 2026 &nbsp;·&nbsp; MySQL · Laravel 12 · Spatie Permission v6</p>
+</div>
+
+<!-- ═══ TABLE OF CONTENTS ═══ -->
+<div class="section page-break">
+  <h2>Table of Contents</h2>
+  <div class="toc">
+    <ol>
+      <li><a href="#overview">System Overview</a></li>
+      <li><a href="#erd">Entity Relationship Diagram (Crow's Foot)</a></li>
+      <li><a href="#tables">Table Specifications</a>
+        <ol>
+          <li>users</li><li>roles / model_has_roles</li><li>rooms</li><li>tenants</li>
+          <li>contracts</li><li>contract_tenants (junction)</li><li>meter_readings</li>
+          <li>settings</li><li>invoices</li><li>tenant_payments</li>
+          <li>payments</li><li>deposit_entries</li><li>audit_logs</li>
+        </ol>
+      </li>
+      <li><a href="#relationships">Relationship Summary</a></li>
+      <li><a href="#business-rules">Business Rules</a></li>
+      <li><a href="#indexes">Indexes &amp; Constraints</a></li>
+    </ol>
+  </div>
+</div>
+
+<!-- ═══ SECTION 1: OVERVIEW ═══ -->
+<div class="section" id="overview">
+  <h2>1. System Overview</h2>
+  <p>Dorm Manager uses a <strong>MySQL</strong> relational database with 13 tables managed through Laravel 12 migrations and Eloquent ORM. The schema is centred on a per-room, per-tenant billing model:</p>
+  <ol>
+    <li>A <strong>Room</strong> has a monthly rate and a maximum capacity.</li>
+    <li>A <strong>Contract</strong> links one or more <strong>Tenants</strong> to a Room for a defined period.</li>
+    <li>Each month, one <strong>Invoice</strong> is generated per Room (= contract).</li>
+    <li>The invoice is automatically split into per-tenant <strong>TenantPayment</strong> rows (rent ÷ tenant_count).</li>
+    <li>Each <strong>Payment</strong> records a transaction and optionally links to the specific TenantPayment it settles.</li>
+  </ol>
+  <div class="note"><strong>Role control</strong> is provided by the <code>spatie/laravel-permission</code> package, which adds <code>roles</code>, <code>permissions</code>, and <code>model_has_roles</code> tables. Three roles are seeded: <code>owner</code>, <code>employee</code>, <code>tenant</code>.</div>
+</div>
+
+<!-- ═══ SECTION 2: ERD ═══ -->
+<div class="erd-section page-break" id="erd">
+  <h2>2. Entity Relationship Diagram — Crow's Foot Notation</h2>
+  <p style="margin-bottom:12px;font-size:9pt;color:#64748b">Color key: 🔵 Blue=users/tenants &nbsp;·&nbsp; 🟢 Teal=rooms/contracts &nbsp;·&nbsp; 🟣 Purple=invoices/deposit &nbsp;·&nbsp; 🟩 Green=payments &nbsp;·&nbsp; 🟡 Amber dashed=junction table &nbsp;·&nbsp; 🟠 Orange=meter/settings &nbsp;·&nbsp; 🔴 Rose=audit_logs</p>
+  <div class="erd-wrap">
+<svg viewBox="0 0 1600 1200" xmlns="http://www.w3.org/2000/svg" font-family="Arial, sans-serif" font-size="12">
+  <defs>
+    <marker id="crow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L9,5 L0,10 M0,5 L9,5" stroke="#555" stroke-width="1.2" fill="none"/>
+    </marker>
+    <marker id="one" markerWidth="6" markerHeight="10" refX="3" refY="5" orient="auto">
+      <line x1="3" y1="1" x2="3" y2="9" stroke="#555" stroke-width="1.5"/>
+    </marker>
+    <marker id="one-one" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <line x1="5" y1="1" x2="5" y2="9" stroke="#555" stroke-width="1.5"/>
+      <line x1="8" y1="1" x2="8" y2="9" stroke="#555" stroke-width="1.5"/>
+    </marker>
+    <marker id="zero" markerWidth="8" markerHeight="10" refX="4" refY="5" orient="auto">
+      <circle cx="4" cy="5" r="3" stroke="#555" stroke-width="1.2" fill="white"/>
+    </marker>
+  </defs>
+  <rect width="1600" height="1200" fill="#f0f4f8"/>
+  <!-- users -->
+  <g id="e-users">
+    <rect x="30" y="30" width="190" height="230" rx="6" fill="#dbeafe" stroke="#93c5fd" stroke-width="1.5"/>
+    <rect x="30" y="30" width="190" height="32" rx="6" fill="#1d4ed8"/>
+    <rect x="30" y="50" width="190" height="12" fill="#1d4ed8"/>
+    <text x="125" y="52" text-anchor="middle" fill="white" font-weight="bold" font-size="13">users</text>
+    <line x1="30" y1="62" x2="220" y2="62" stroke="#93c5fd" stroke-width="1"/>
+    <text x="40" y="78" font-weight="bold" fill="#dc2626">PK</text><text x="70" y="78" fill="#1e293b">id</text>
+    <line x1="30" y1="83" x2="220" y2="83" stroke="#bfdbfe" stroke-width=".7"/>
+    <text x="40" y="99" fill="#1e293b">name</text>
+    <line x1="30" y1="104" x2="220" y2="104" stroke="#bfdbfe" stroke-width=".7"/>
+    <text x="40" y="120" fill="#1e293b">email</text>
+    <line x1="30" y1="125" x2="220" y2="125" stroke="#bfdbfe" stroke-width=".7"/>
+    <text x="40" y="141" fill="#1e293b">phone</text>
+    <line x1="30" y1="146" x2="220" y2="146" stroke="#bfdbfe" stroke-width=".7"/>
+    <text x="40" y="162" fill="#1e293b">password</text>
+    <line x1="30" y1="167" x2="220" y2="167" stroke="#bfdbfe" stroke-width=".7"/>
+    <text x="40" y="183" fill="#1e293b">is_active</text>
+    <line x1="30" y1="188" x2="220" y2="188" stroke="#bfdbfe" stroke-width=".7"/>
+    <text x="40" y="204" fill="#1e293b">remember_token</text>
+    <line x1="30" y1="209" x2="220" y2="209" stroke="#bfdbfe" stroke-width=".7"/>
+    <text x="40" y="225" fill="#1e293b">created_at</text>
+    <line x1="30" y1="230" x2="220" y2="230" stroke="#bfdbfe" stroke-width=".7"/>
+    <text x="40" y="253" fill="#1e293b">updated_at</text>
+  </g>
+  <!-- tenants -->
+  <g id="e-tenants">
+    <rect x="30" y="310" width="190" height="210" rx="6" fill="#dbeafe" stroke="#93c5fd" stroke-width="1.5"/>
+    <rect x="30" y="310" width="190" height="32" rx="6" fill="#1d4ed8"/>
+    <rect x="30" y="330" width="190" height="12" fill="#1d4ed8"/>
+    <text x="125" y="332" text-anchor="middle" fill="white" font-weight="bold" font-size="13">tenants</text>
+    <line x1="30" y1="342" x2="220" y2="342" stroke="#93c5fd" stroke-width="1"/>
+    <text x="40" y="358" font-weight="bold" fill="#dc2626">PK</text><text x="70" y="358" fill="#1e293b">id</text>
+    <line x1="30" y1="363" x2="220" y2="363" stroke="#bfdbfe" stroke-width=".7"/>
+    <text x="40" y="379" font-weight="bold" fill="#2563eb">FK</text><text x="70" y="379" fill="#1e293b">user_id</text>
+    <line x1="30" y1="384" x2="220" y2="384" stroke="#bfdbfe" stroke-width=".7"/>
+    <text x="40" y="400" fill="#1e293b">birthdate</text>
+    <line x1="30" y1="405" x2="220" y2="405" stroke="#bfdbfe" stroke-width=".7"/>
+    <text x="40" y="421" fill="#1e293b">id_type</text>
+    <line x1="30" y1="426" x2="220" y2="426" stroke="#bfdbfe" stroke-width=".7"/>
+    <text x="40" y="442" fill="#1e293b">id_number</text>
+    <line x1="30" y1="447" x2="220" y2="447" stroke="#bfdbfe" stroke-width=".7"/>
+    <text x="40" y="463" fill="#1e293b">emergency_name</text>
+    <line x1="30" y1="468" x2="220" y2="468" stroke="#bfdbfe" stroke-width=".7"/>
+    <text x="40" y="484" fill="#1e293b">emergency_phone</text>
+    <line x1="30" y1="489" x2="220" y2="489" stroke="#bfdbfe" stroke-width=".7"/>
+    <text x="40" y="510" fill="#1e293b">timestamps</text>
+  </g>
+  <!-- rooms -->
+  <g id="e-rooms">
+    <rect x="290" y="30" width="190" height="210" rx="6" fill="#ccfbf1" stroke="#5eead4" stroke-width="1.5"/>
+    <rect x="290" y="30" width="190" height="32" rx="6" fill="#0f766e"/>
+    <rect x="290" y="50" width="190" height="12" fill="#0f766e"/>
+    <text x="385" y="52" text-anchor="middle" fill="white" font-weight="bold" font-size="13">rooms</text>
+    <line x1="290" y1="62" x2="480" y2="62" stroke="#5eead4" stroke-width="1"/>
+    <text x="300" y="78" font-weight="bold" fill="#dc2626">PK</text><text x="330" y="78" fill="#1e293b">id</text>
+    <line x1="290" y1="83" x2="480" y2="83" stroke="#99f6e4" stroke-width=".7"/>
+    <text x="300" y="99" fill="#1e293b">room_number</text>
+    <line x1="290" y1="104" x2="480" y2="104" stroke="#99f6e4" stroke-width=".7"/>
+    <text x="300" y="120" fill="#1e293b">floor</text>
+    <line x1="290" y1="125" x2="480" y2="125" stroke="#99f6e4" stroke-width=".7"/>
+    <text x="300" y="141" fill="#1e293b">capacity</text>
+    <line x1="290" y1="146" x2="480" y2="146" stroke="#99f6e4" stroke-width=".7"/>
+    <text x="300" y="162" fill="#1e293b">monthly_rate</text>
+    <line x1="290" y1="167" x2="480" y2="167" stroke="#99f6e4" stroke-width=".7"/>
+    <text x="300" y="183" fill="#1e293b">meter_number</text>
+    <line x1="290" y1="188" x2="480" y2="188" stroke="#99f6e4" stroke-width=".7"/>
+    <text x="300" y="204" fill="#1e293b">status</text>
+    <line x1="290" y1="209" x2="480" y2="209" stroke="#99f6e4" stroke-width=".7"/>
+    <text x="300" y="230" fill="#1e293b">timestamps</text>
+  </g>
+  <!-- contracts -->
+  <g id="e-contracts">
+    <rect x="290" y="295" width="190" height="260" rx="6" fill="#ccfbf1" stroke="#5eead4" stroke-width="1.5"/>
+    <rect x="290" y="295" width="190" height="32" rx="6" fill="#0f766e"/>
+    <rect x="290" y="315" width="190" height="12" fill="#0f766e"/>
+    <text x="385" y="317" text-anchor="middle" fill="white" font-weight="bold" font-size="13">contracts</text>
+    <line x1="290" y1="327" x2="480" y2="327" stroke="#5eead4" stroke-width="1"/>
+    <text x="300" y="343" font-weight="bold" fill="#dc2626">PK</text><text x="330" y="343" fill="#1e293b">id</text>
+    <line x1="290" y1="348" x2="480" y2="348" stroke="#99f6e4" stroke-width=".7"/>
+    <text x="300" y="364" font-weight="bold" fill="#2563eb">FK</text><text x="330" y="364" fill="#1e293b">room_id</text>
+    <line x1="290" y1="369" x2="480" y2="369" stroke="#99f6e4" stroke-width=".7"/>
+    <text x="300" y="385" font-weight="bold" fill="#2563eb">FK</text><text x="330" y="385" fill="#1e293b">created_by</text>
+    <line x1="290" y1="390" x2="480" y2="390" stroke="#99f6e4" stroke-width=".7"/>
+    <text x="300" y="406" fill="#1e293b">start_date</text>
+    <line x1="290" y1="411" x2="480" y2="411" stroke="#99f6e4" stroke-width=".7"/>
+    <text x="300" y="427" fill="#1e293b">end_date</text>
+    <line x1="290" y1="432" x2="480" y2="432" stroke="#99f6e4" stroke-width=".7"/>
+    <text x="300" y="448" fill="#1e293b">due_day</text>
+    <line x1="290" y1="453" x2="480" y2="453" stroke="#99f6e4" stroke-width=".7"/>
+    <text x="300" y="469" fill="#1e293b">deposit_required</text>
+    <line x1="290" y1="474" x2="480" y2="474" stroke="#99f6e4" stroke-width=".7"/>
+    <text x="300" y="490" fill="#1e293b">deposit_collected</text>
+    <line x1="290" y1="495" x2="480" y2="495" stroke="#99f6e4" stroke-width=".7"/>
+    <text x="300" y="511" fill="#1e293b">status</text>
+    <line x1="290" y1="516" x2="480" y2="516" stroke="#99f6e4" stroke-width=".7"/>
+    <text x="300" y="545" fill="#1e293b">timestamps</text>
+  </g>
+  <!-- contract_tenants JUNCTION -->
+  <g id="e-ct">
+    <rect x="140" y="580" width="210" height="150" rx="6" fill="#fef3c7" stroke="#fcd34d" stroke-width="2"/>
+    <rect x="140" y="580" width="210" height="32" rx="6" fill="#b45309"/>
+    <rect x="140" y="600" width="210" height="12" fill="#b45309"/>
+    <text x="245" y="601" text-anchor="middle" fill="white" font-weight="bold" font-size="12">contract_tenants</text>
+    <text x="245" y="613" text-anchor="middle" fill="#fef08a" font-size="9">«junction»</text>
+    <line x1="140" y1="622" x2="350" y2="622" stroke="#fcd34d" stroke-width="1"/>
+    <text x="150" y="638" font-weight="bold" fill="#dc2626">PK</text><text x="180" y="638" fill="#1e293b">id</text>
+    <line x1="140" y1="643" x2="350" y2="643" stroke="#fef3c7" stroke-width=".7"/>
+    <text x="150" y="659" font-weight="bold" fill="#2563eb">FK</text><text x="180" y="659" fill="#1e293b">contract_id</text>
+    <line x1="140" y1="664" x2="350" y2="664" stroke="#fef3c7" stroke-width=".7"/>
+    <text x="150" y="680" font-weight="bold" fill="#2563eb">FK</text><text x="180" y="680" fill="#1e293b">tenant_id</text>
+    <line x1="140" y1="685" x2="350" y2="685" stroke="#fef3c7" stroke-width=".7"/>
+    <text x="150" y="701" fill="#1e293b">joined_on</text>
+    <line x1="140" y1="706" x2="350" y2="706" stroke="#fef3c7" stroke-width=".7"/>
+    <text x="150" y="722" fill="#1e293b">left_on</text>
+  </g>
+  <!-- meter_readings -->
+  <g id="e-mr">
+    <rect x="550" y="30" width="200" height="195" rx="6" fill="#ffedd5" stroke="#fdba74" stroke-width="1.5"/>
+    <rect x="550" y="30" width="200" height="32" rx="6" fill="#c2410c"/>
+    <rect x="550" y="50" width="200" height="12" fill="#c2410c"/>
+    <text x="650" y="52" text-anchor="middle" fill="white" font-weight="bold" font-size="13">meter_readings</text>
+    <line x1="550" y1="62" x2="750" y2="62" stroke="#fdba74" stroke-width="1"/>
+    <text x="560" y="78" font-weight="bold" fill="#dc2626">PK</text><text x="590" y="78" fill="#1e293b">id</text>
+    <line x1="550" y1="83" x2="750" y2="83" stroke="#fed7aa" stroke-width=".7"/>
+    <text x="560" y="99" font-weight="bold" fill="#2563eb">FK</text><text x="590" y="99" fill="#1e293b">room_id</text>
+    <line x1="550" y1="104" x2="750" y2="104" stroke="#fed7aa" stroke-width=".7"/>
+    <text x="560" y="120" fill="#1e293b">reading_month</text>
+    <line x1="550" y1="125" x2="750" y2="125" stroke="#fed7aa" stroke-width=".7"/>
+    <text x="560" y="141" fill="#1e293b">previous_kwh</text>
+    <line x1="550" y1="146" x2="750" y2="146" stroke="#fed7aa" stroke-width=".7"/>
+    <text x="560" y="162" fill="#1e293b">current_kwh</text>
+    <line x1="550" y1="167" x2="750" y2="167" stroke="#fed7aa" stroke-width=".7"/>
+    <text x="560" y="183" fill="#1e293b">kwh_used</text>
+    <line x1="550" y1="188" x2="750" y2="188" stroke="#fed7aa" stroke-width=".7"/>
+    <text x="560" y="215" fill="#1e293b">recorded_by</text>
+  </g>
+  <!-- settings -->
+  <g id="e-settings">
+    <rect x="550" y="270" width="200" height="155" rx="6" fill="#ffedd5" stroke="#fdba74" stroke-width="1.5"/>
+    <rect x="550" y="270" width="200" height="32" rx="6" fill="#c2410c"/>
+    <rect x="550" y="290" width="200" height="12" fill="#c2410c"/>
+    <text x="650" y="292" text-anchor="middle" fill="white" font-weight="bold" font-size="13">settings</text>
+    <line x1="550" y1="302" x2="750" y2="302" stroke="#fdba74" stroke-width="1"/>
+    <text x="560" y="318" font-weight="bold" fill="#dc2626">PK</text><text x="590" y="318" fill="#1e293b">id</text>
+    <line x1="550" y1="323" x2="750" y2="323" stroke="#fed7aa" stroke-width=".7"/>
+    <text x="560" y="339" fill="#1e293b">key</text>
+    <line x1="550" y1="344" x2="750" y2="344" stroke="#fed7aa" stroke-width=".7"/>
+    <text x="560" y="360" fill="#1e293b">value</text>
+    <line x1="550" y1="365" x2="750" y2="365" stroke="#fed7aa" stroke-width=".7"/>
+    <text x="560" y="381" fill="#1e293b">effective_from</text>
+    <line x1="550" y1="386" x2="750" y2="386" stroke="#fed7aa" stroke-width=".7"/>
+    <text x="560" y="412" fill="#1e293b">set_by (FK→users)</text>
+  </g>
+  <!-- invoices -->
+  <g id="e-invoices">
+    <rect x="820" y="30" width="210" height="320" rx="6" fill="#ede9fe" stroke="#c4b5fd" stroke-width="1.5"/>
+    <rect x="820" y="30" width="210" height="32" rx="6" fill="#6d28d9"/>
+    <rect x="820" y="50" width="210" height="12" fill="#6d28d9"/>
+    <text x="925" y="52" text-anchor="middle" fill="white" font-weight="bold" font-size="13">invoices</text>
+    <line x1="820" y1="62" x2="1030" y2="62" stroke="#c4b5fd" stroke-width="1"/>
+    <text x="830" y="78" font-weight="bold" fill="#dc2626">PK</text><text x="860" y="78" fill="#1e293b">id</text>
+    <line x1="820" y1="83" x2="1030" y2="83" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="99" fill="#1e293b">invoice_number</text>
+    <line x1="820" y1="104" x2="1030" y2="104" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="120" font-weight="bold" fill="#2563eb">FK</text><text x="860" y="120" fill="#1e293b">contract_id</text>
+    <line x1="820" y1="125" x2="1030" y2="125" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="141" fill="#1e293b">tenant_count</text>
+    <line x1="820" y1="146" x2="1030" y2="146" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="162" fill="#1e293b">billing_month</text>
+    <line x1="820" y1="167" x2="1030" y2="167" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="183" fill="#1e293b">due_date</text>
+    <line x1="820" y1="188" x2="1030" y2="188" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="204" fill="#1e293b">rent_amount</text>
+    <line x1="820" y1="209" x2="1030" y2="209" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="225" fill="#1e293b">electricity_amount</text>
+    <line x1="820" y1="230" x2="1030" y2="230" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="246" fill="#1e293b">total_amount</text>
+    <line x1="820" y1="251" x2="1030" y2="251" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="267" fill="#1e293b">amount_paid</text>
+    <line x1="820" y1="272" x2="1030" y2="272" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="288" fill="#1e293b">status</text>
+    <line x1="820" y1="293" x2="1030" y2="293" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="309" fill="#1e293b">paymongo_link_id</text>
+    <line x1="820" y1="314" x2="1030" y2="314" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="340" fill="#1e293b">timestamps</text>
+  </g>
+  <!-- tenant_payments -->
+  <g id="e-tp">
+    <rect x="1100" y="30" width="210" height="255" rx="6" fill="#dcfce7" stroke="#86efac" stroke-width="1.5"/>
+    <rect x="1100" y="30" width="210" height="32" rx="6" fill="#15803d"/>
+    <rect x="1100" y="50" width="210" height="12" fill="#15803d"/>
+    <text x="1205" y="52" text-anchor="middle" fill="white" font-weight="bold" font-size="13">tenant_payments</text>
+    <line x1="1100" y1="62" x2="1310" y2="62" stroke="#86efac" stroke-width="1"/>
+    <text x="1110" y="78" font-weight="bold" fill="#dc2626">PK</text><text x="1140" y="78" fill="#1e293b">id</text>
+    <line x1="1100" y1="83" x2="1310" y2="83" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="99" font-weight="bold" fill="#2563eb">FK</text><text x="1140" y="99" fill="#1e293b">invoice_id</text>
+    <line x1="1100" y1="104" x2="1310" y2="104" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="120" font-weight="bold" fill="#2563eb">FK</text><text x="1140" y="120" fill="#1e293b">tenant_id</text>
+    <line x1="1100" y1="125" x2="1310" y2="125" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="141" fill="#1e293b">share_amount</text>
+    <line x1="1100" y1="146" x2="1310" y2="146" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="162" fill="#1e293b">amount_paid</text>
+    <line x1="1100" y1="167" x2="1310" y2="167" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="183" fill="#1e293b">status</text>
+    <line x1="1100" y1="188" x2="1310" y2="188" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="204" fill="#1e293b">method</text>
+    <line x1="1100" y1="209" x2="1310" y2="209" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="225" fill="#1e293b">paid_at</text>
+    <line x1="1100" y1="230" x2="1310" y2="230" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="246" fill="#1e293b">paymongo_link_id</text>
+    <line x1="1100" y1="251" x2="1310" y2="251" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="272" fill="#1e293b">timestamps</text>
+  </g>
+  <!-- payments -->
+  <g id="e-payments">
+    <rect x="1100" y="340" width="210" height="230" rx="6" fill="#dcfce7" stroke="#86efac" stroke-width="1.5"/>
+    <rect x="1100" y="340" width="210" height="32" rx="6" fill="#15803d"/>
+    <rect x="1100" y="360" width="210" height="12" fill="#15803d"/>
+    <text x="1205" y="362" text-anchor="middle" fill="white" font-weight="bold" font-size="13">payments</text>
+    <line x1="1100" y1="372" x2="1310" y2="372" stroke="#86efac" stroke-width="1"/>
+    <text x="1110" y="388" font-weight="bold" fill="#dc2626">PK</text><text x="1140" y="388" fill="#1e293b">id</text>
+    <line x1="1100" y1="393" x2="1310" y2="393" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="409" font-weight="bold" fill="#2563eb">FK</text><text x="1140" y="409" fill="#1e293b">invoice_id</text>
+    <line x1="1100" y1="414" x2="1310" y2="414" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="430" font-weight="bold" fill="#2563eb">FK</text><text x="1140" y="430" fill="#1e293b">tenant_payment_id</text>
+    <line x1="1100" y1="435" x2="1310" y2="435" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="451" fill="#1e293b">amount</text>
+    <line x1="1100" y1="456" x2="1310" y2="456" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="472" fill="#1e293b">method</text>
+    <line x1="1100" y1="477" x2="1310" y2="477" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="493" fill="#1e293b">received_at</text>
+    <line x1="1100" y1="498" x2="1310" y2="498" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="514" fill="#1e293b">reference</text>
+    <line x1="1100" y1="519" x2="1310" y2="519" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="535" fill="#1e293b">recorded_by_type</text>
+    <line x1="1100" y1="540" x2="1310" y2="540" stroke="#bbf7d0" stroke-width=".7"/>
+    <text x="1110" y="562" fill="#1e293b">recorded_by_user</text>
+  </g>
+  <!-- deposit_entries -->
+  <g id="e-de">
+    <rect x="820" y="420" width="200" height="185" rx="6" fill="#ede9fe" stroke="#c4b5fd" stroke-width="1.5"/>
+    <rect x="820" y="420" width="200" height="32" rx="6" fill="#6d28d9"/>
+    <rect x="820" y="440" width="200" height="12" fill="#6d28d9"/>
+    <text x="920" y="442" text-anchor="middle" fill="white" font-weight="bold" font-size="12">deposit_entries</text>
+    <line x1="820" y1="452" x2="1020" y2="452" stroke="#c4b5fd" stroke-width="1"/>
+    <text x="830" y="468" font-weight="bold" fill="#dc2626">PK</text><text x="860" y="468" fill="#1e293b">id</text>
+    <line x1="820" y1="473" x2="1020" y2="473" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="489" font-weight="bold" fill="#2563eb">FK</text><text x="860" y="489" fill="#1e293b">contract_id</text>
+    <line x1="820" y1="494" x2="1020" y2="494" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="510" fill="#1e293b">type</text>
+    <line x1="820" y1="515" x2="1020" y2="515" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="531" fill="#1e293b">amount</text>
+    <line x1="820" y1="536" x2="1020" y2="536" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="552" fill="#1e293b">date</text>
+    <line x1="820" y1="557" x2="1020" y2="557" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="573" fill="#1e293b">reason</text>
+    <line x1="820" y1="578" x2="1020" y2="578" stroke="#ddd6fe" stroke-width=".7"/>
+    <text x="830" y="597" fill="#1e293b">recorded_by</text>
+  </g>
+  <!-- audit_logs -->
+  <g id="e-al">
+    <rect x="550" y="480" width="210" height="210" rx="6" fill="#ffe4e6" stroke="#fca5a5" stroke-width="1.5"/>
+    <rect x="550" y="480" width="210" height="32" rx="6" fill="#be123c"/>
+    <rect x="550" y="500" width="210" height="12" fill="#be123c"/>
+    <text x="655" y="502" text-anchor="middle" fill="white" font-weight="bold" font-size="13">audit_logs</text>
+    <text x="655" y="514" text-anchor="middle" fill="#fecdd3" font-size="9">«append only»</text>
+    <line x1="550" y1="520" x2="760" y2="520" stroke="#fca5a5" stroke-width="1"/>
+    <text x="560" y="536" font-weight="bold" fill="#dc2626">PK</text><text x="590" y="536" fill="#1e293b">id</text>
+    <line x1="550" y1="541" x2="760" y2="541" stroke="#fecdd3" stroke-width=".7"/>
+    <text x="560" y="557" font-weight="bold" fill="#2563eb">FK</text><text x="590" y="557" fill="#1e293b">user_id (nullable)</text>
+    <line x1="550" y1="562" x2="760" y2="562" stroke="#fecdd3" stroke-width=".7"/>
+    <text x="560" y="578" fill="#1e293b">user_label</text>
+    <line x1="550" y1="583" x2="760" y2="583" stroke="#fecdd3" stroke-width=".7"/>
+    <text x="560" y="599" fill="#1e293b">action</text>
+    <line x1="550" y1="604" x2="760" y2="604" stroke="#fecdd3" stroke-width=".7"/>
+    <text x="560" y="620" fill="#1e293b">record_type</text>
+    <line x1="550" y1="625" x2="760" y2="625" stroke="#fecdd3" stroke-width=".7"/>
+    <text x="560" y="641" fill="#1e293b">record_id</text>
+    <line x1="550" y1="646" x2="760" y2="646" stroke="#fecdd3" stroke-width=".7"/>
+    <text x="560" y="662" fill="#1e293b">description</text>
+    <line x1="550" y1="667" x2="760" y2="667" stroke="#fecdd3" stroke-width=".7"/>
+    <text x="560" y="682" fill="#1e293b">created_at</text>
+  </g>
+  <!-- RELATIONSHIPS -->
+  <line x1="125" y1="260" x2="125" y2="310" stroke="#555" stroke-width="1.5"/>
+  <line x1="118" y1="268" x2="132" y2="268" stroke="#555" stroke-width="1.5"/>
+  <line x1="118" y1="274" x2="132" y2="274" stroke="#555" stroke-width="1.5"/>
+  <circle cx="125" cy="304" r="4" fill="white" stroke="#555" stroke-width="1.5"/>
+  <line x1="118" y1="298" x2="132" y2="298" stroke="#555" stroke-width="1.5"/>
+  <text x="135" y="285" font-size="10" fill="#555">1</text>
+  <text x="135" y="299" font-size="10" fill="#555">0..1</text>
+  <line x1="385" y1="240" x2="385" y2="295" stroke="#555" stroke-width="1.5"/>
+  <line x1="378" y1="247" x2="392" y2="247" stroke="#555" stroke-width="1.5"/>
+  <line x1="378" y1="253" x2="392" y2="253" stroke="#555" stroke-width="1.5"/>
+  <line x1="378" y1="289" x2="385" y2="295" stroke="#555" stroke-width="1.5"/>
+  <line x1="392" y1="289" x2="385" y2="295" stroke="#555" stroke-width="1.5"/>
+  <line x1="385" y1="285" x2="385" y2="295" stroke="#555" stroke-width="1.5"/>
+  <circle cx="385" cy="281" r="4" fill="white" stroke="#555" stroke-width="1.5"/>
+  <text x="395" y="265" font-size="10" fill="#555">1</text>
+  <text x="395" y="278" font-size="10" fill="#555">0..*</text>
+  <line x1="480" y1="136" x2="550" y2="136" stroke="#555" stroke-width="1.5"/>
+  <line x1="487" y1="129" x2="487" y2="143" stroke="#555" stroke-width="1.5"/>
+  <line x1="493" y1="129" x2="493" y2="143" stroke="#555" stroke-width="1.5"/>
+  <line x1="544" y1="129" x2="550" y2="136" stroke="#555" stroke-width="1.5"/>
+  <line x1="544" y1="143" x2="550" y2="136" stroke="#555" stroke-width="1.5"/>
+  <line x1="540" y1="136" x2="550" y2="136" stroke="#555" stroke-width="1.5"/>
+  <circle cx="534" cy="136" r="4" fill="white" stroke="#555" stroke-width="1.5"/>
+  <text x="500" y="128" font-size="10" fill="#555">1</text>
+  <text x="516" y="128" font-size="10" fill="#555">0..*</text>
+  <line x1="350" y1="555" x2="305" y2="580" stroke="#b45309" stroke-width="1.5" stroke-dasharray="5,2"/>
+  <line x1="299" y1="574" x2="305" y2="580" stroke="#b45309" stroke-width="1.5"/>
+  <line x1="311" y1="574" x2="305" y2="580" stroke="#b45309" stroke-width="1.5"/>
+  <line x1="301" y1="580" x2="305" y2="580" stroke="#b45309" stroke-width="1.5"/>
+  <line x1="343" y1="548" x2="357" y2="548" stroke="#b45309" stroke-width="1.5"/>
+  <line x1="343" y1="554" x2="357" y2="554" stroke="#b45309" stroke-width="1.5"/>
+  <line x1="160" y1="519" x2="160" y2="580" stroke="#b45309" stroke-width="1.5" stroke-dasharray="5,2"/>
+  <line x1="153" y1="526" x2="167" y2="526" stroke="#b45309" stroke-width="1.5"/>
+  <line x1="153" y1="532" x2="167" y2="532" stroke="#b45309" stroke-width="1.5"/>
+  <line x1="153" y1="574" x2="160" y2="580" stroke="#b45309" stroke-width="1.5"/>
+  <line x1="167" y1="574" x2="160" y2="580" stroke="#b45309" stroke-width="1.5"/>
+  <line x1="157" y1="580" x2="160" y2="580" stroke="#b45309" stroke-width="1.5"/>
+  <text x="170" y="555" font-size="10" fill="#b45309">M</text>
+  <text x="340" y="560" font-size="10" fill="#b45309">M</text>
+  <line x1="480" y1="420" x2="820" y2="175" stroke="#555" stroke-width="1.5"/>
+  <line x1="487" y1="413" x2="487" y2="427" stroke="#555" stroke-width="1.5"/>
+  <line x1="493" y1="413" x2="493" y2="427" stroke="#555" stroke-width="1.5"/>
+  <line x1="814" y1="168" x2="820" y2="175" stroke="#555" stroke-width="1.5"/>
+  <line x1="814" y1="182" x2="820" y2="175" stroke="#555" stroke-width="1.5"/>
+  <line x1="810" y1="175" x2="820" y2="175" stroke="#555" stroke-width="1.5"/>
+  <circle cx="804" cy="175" r="4" fill="white" stroke="#555" stroke-width="1.5"/>
+  <text x="600" y="320" font-size="10" fill="#555">1</text>
+  <text x="615" y="333" font-size="10" fill="#555">0..*</text>
+  <line x1="480" y1="490" x2="820" y2="490" stroke="#555" stroke-width="1.5"/>
+  <line x1="487" y1="483" x2="487" y2="497" stroke="#555" stroke-width="1.5"/>
+  <line x1="493" y1="483" x2="493" y2="497" stroke="#555" stroke-width="1.5"/>
+  <line x1="814" y1="483" x2="820" y2="490" stroke="#555" stroke-width="1.5"/>
+  <line x1="814" y1="497" x2="820" y2="490" stroke="#555" stroke-width="1.5"/>
+  <line x1="810" y1="490" x2="820" y2="490" stroke="#555" stroke-width="1.5"/>
+  <circle cx="804" cy="490" r="4" fill="white" stroke="#555" stroke-width="1.5"/>
+  <text x="630" y="483" font-size="10" fill="#555">1</text>
+  <text x="645" y="496" font-size="10" fill="#555">0..*</text>
+  <line x1="1030" y1="120" x2="1100" y2="120" stroke="#555" stroke-width="1.5"/>
+  <line x1="1037" y1="113" x2="1037" y2="127" stroke="#555" stroke-width="1.5"/>
+  <line x1="1043" y1="113" x2="1043" y2="127" stroke="#555" stroke-width="1.5"/>
+  <line x1="1094" y1="113" x2="1100" y2="120" stroke="#555" stroke-width="1.5"/>
+  <line x1="1094" y1="127" x2="1100" y2="120" stroke="#555" stroke-width="1.5"/>
+  <line x1="1090" y1="120" x2="1100" y2="120" stroke="#555" stroke-width="1.5"/>
+  <line x1="1088" y1="113" x2="1088" y2="127" stroke="#555" stroke-width="1.5"/>
+  <text x="1048" y="113" font-size="10" fill="#555">1</text>
+  <text x="1060" y="113" font-size="10" fill="#555">1..*</text>
+  <path d="M1030,250 L1065,250 L1065,430 L1100,430" stroke="#555" stroke-width="1.5" fill="none"/>
+  <line x1="1037" y1="243" x2="1037" y2="257" stroke="#555" stroke-width="1.5"/>
+  <line x1="1043" y1="243" x2="1043" y2="257" stroke="#555" stroke-width="1.5"/>
+  <line x1="1094" y1="423" x2="1100" y2="430" stroke="#555" stroke-width="1.5"/>
+  <line x1="1094" y1="437" x2="1100" y2="430" stroke="#555" stroke-width="1.5"/>
+  <line x1="1090" y1="430" x2="1100" y2="430" stroke="#555" stroke-width="1.5"/>
+  <circle cx="1084" cy="430" r="4" fill="white" stroke="#555" stroke-width="1.5"/>
+  <text x="1070" y="350" font-size="10" fill="#555">1 .. 0..*</text>
+  <line x1="1205" y1="285" x2="1205" y2="340" stroke="#555" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <line x1="1198" y1="292" x2="1212" y2="292" stroke="#555" stroke-width="1.5"/>
+  <line x1="1198" y1="298" x2="1212" y2="298" stroke="#555" stroke-width="1.5"/>
+  <circle cx="1205" cy="334" r="4" fill="white" stroke="#555" stroke-width="1.5"/>
+  <line x1="1198" y1="328" x2="1212" y2="328" stroke="#555" stroke-width="1.5"/>
+  <text x="1215" y="313" font-size="10" fill="#888">0..1</text>
+  <path d="M220,370 Q680,800 1100,110" stroke="#555" stroke-width="1.5" fill="none"/>
+  <line x1="213" y1="363" x2="227" y2="363" stroke="#555" stroke-width="1.5"/>
+  <line x1="213" y1="369" x2="227" y2="369" stroke="#555" stroke-width="1.5"/>
+  <line x1="1094" y1="103" x2="1100" y2="110" stroke="#555" stroke-width="1.5"/>
+  <line x1="1094" y1="117" x2="1100" y2="110" stroke="#555" stroke-width="1.5"/>
+  <line x1="1090" y1="110" x2="1100" y2="110" stroke="#555" stroke-width="1.5"/>
+  <line x1="1088" y1="103" x2="1088" y2="117" stroke="#555" stroke-width="1.5"/>
+  <text x="680" y="795" font-size="10" fill="#555">1 .. 1..*</text>
+  <!-- LEGEND -->
+  <rect x="30" y="760" width="480" height="200" rx="8" fill="white" stroke="#cbd5e1" stroke-width="1.5"/>
+  <rect x="30" y="760" width="480" height="34" rx="8" fill="#1e293b"/>
+  <rect x="30" y="778" width="480" height="16" fill="#1e293b"/>
+  <text x="270" y="782" text-anchor="middle" fill="white" font-weight="bold" font-size="13">CROW'S FOOT NOTATION LEGEND</text>
+  <line x1="55" y1="820" x2="115" y2="820" stroke="#555" stroke-width="1.5"/>
+  <line x1="62" y1="813" x2="62" y2="827" stroke="#555" stroke-width="1.5"/>
+  <line x1="68" y1="813" x2="68" y2="827" stroke="#555" stroke-width="1.5"/>
+  <line x1="108" y1="813" x2="108" y2="827" stroke="#555" stroke-width="1.5"/>
+  <line x1="114" y1="813" x2="114" y2="827" stroke="#555" stroke-width="1.5"/>
+  <text x="125" y="824" font-size="11" fill="#1e293b">Exactly one (mandatory)</text>
+  <line x1="55" y1="855" x2="115" y2="855" stroke="#555" stroke-width="1.5"/>
+  <line x1="62" y1="848" x2="62" y2="862" stroke="#555" stroke-width="1.5"/>
+  <line x1="68" y1="848" x2="68" y2="862" stroke="#555" stroke-width="1.5"/>
+  <circle cx="108" cy="855" r="5" fill="white" stroke="#555" stroke-width="1.5"/>
+  <line x1="101" y1="848" x2="101" y2="862" stroke="#555" stroke-width="1.5"/>
+  <text x="125" y="859" font-size="11" fill="#1e293b">Zero or one (optional)</text>
+  <line x1="55" y1="890" x2="115" y2="890" stroke="#555" stroke-width="1.5"/>
+  <line x1="62" y1="883" x2="62" y2="897" stroke="#555" stroke-width="1.5"/>
+  <line x1="68" y1="883" x2="68" y2="897" stroke="#555" stroke-width="1.5"/>
+  <line x1="109" y1="883" x2="115" y2="890" stroke="#555" stroke-width="1.5"/>
+  <line x1="109" y1="897" x2="115" y2="890" stroke="#555" stroke-width="1.5"/>
+  <line x1="105" y1="890" x2="115" y2="890" stroke="#555" stroke-width="1.5"/>
+  <line x1="103" y1="883" x2="103" y2="897" stroke="#555" stroke-width="1.5"/>
+  <text x="125" y="894" font-size="11" fill="#1e293b">One or many (1..*)</text>
+  <line x1="270" y1="820" x2="330" y2="820" stroke="#555" stroke-width="1.5"/>
+  <line x1="277" y1="813" x2="277" y2="827" stroke="#555" stroke-width="1.5"/>
+  <line x1="283" y1="813" x2="283" y2="827" stroke="#555" stroke-width="1.5"/>
+  <circle cx="324" cy="820" r="5" fill="white" stroke="#555" stroke-width="1.5"/>
+  <line x1="316" y1="813" x2="330" y2="820" stroke="#555" stroke-width="1.5"/>
+  <line x1="316" y1="827" x2="330" y2="820" stroke="#555" stroke-width="1.5"/>
+  <line x1="312" y1="820" x2="330" y2="820" stroke="#555" stroke-width="1.5"/>
+  <text x="340" y="824" font-size="11" fill="#1e293b">Zero or many (0..*)</text>
+  <rect x="270" y="843" width="40" height="18" rx="3" fill="#fef3c7" stroke="#b45309" stroke-width="1.5" stroke-dasharray="4,2"/>
+  <text x="318" y="856" font-size="11" fill="#1e293b">Junction table (dashed amber)</text>
+  <text x="270" y="887" font-size="11" font-weight="bold" fill="#dc2626">PK</text>
+  <text x="292" y="887" font-size="11" fill="#1e293b">= Primary Key</text>
+  <text x="270" y="906" font-size="11" font-weight="bold" fill="#2563eb">FK</text>
+  <text x="292" y="906" font-size="11" fill="#1e293b">= Foreign Key</text>
+  <text x="270" y="925" font-size="11" fill="#1e293b">- - - = optional / nullable FK</text>
+  <text x="270" y="943" font-size="11" fill="#555">M = many side of junction</text>
+  <text x="800" y="1170" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e293b">Dorm Manager — Entity Relationship Diagram (Crow's Foot Notation)</text>
+  <text x="800" y="1190" text-anchor="middle" font-size="10" fill="#64748b">Junction table: contract_tenants (amber dashed) | All relationships use standard crow's foot symbols</text>
+</svg>
+  </div>
+</div>
+
+<!-- ═══ SECTION 3: TABLE SPECS ═══ -->
+<div class="section" id="tables">
+  <h2>3. Table Specifications</h2>
+
+  <h3>3.1 users</h3>
+  <table>
+    <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th></tr>
+    <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK, auto-increment</td><td>Unique identifier.</td></tr>
+    <tr><td>name</td><td>VARCHAR(255)</td><td>NOT NULL</td><td>Full name.</td></tr>
+    <tr><td>email</td><td>VARCHAR(255)</td><td>NOT NULL, UNIQUE</td><td>Login email.</td></tr>
+    <tr><td>phone</td><td>VARCHAR(30)</td><td>NULLABLE</td><td>Contact phone.</td></tr>
+    <tr><td>password</td><td>VARCHAR(255)</td><td>NOT NULL</td><td>Bcrypt hash.</td></tr>
+    <tr><td>is_active</td><td>TINYINT(1)</td><td>DEFAULT 1</td><td>0 = disabled (cannot log in).</td></tr>
+    <tr><td>remember_token</td><td>VARCHAR(100)</td><td>NULLABLE</td><td>Laravel "remember me" session token.</td></tr>
+    <tr><td>email_verified_at</td><td>TIMESTAMP</td><td>NULLABLE</td><td>Unused; reserved for future email verification.</td></tr>
+  </table>
+
+  <h3>3.2 roles / model_has_roles (Spatie)</h3>
+  <p>Managed by <code>spatie/laravel-permission</code>. Three roles seeded: <code>owner</code>, <code>employee</code>, <code>tenant</code>.</p>
+
+  <h3>3.3 rooms</h3>
+  <table>
+    <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+    <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+    <tr><td>room_number</td><td>VARCHAR(10) UNIQUE</td><td>e.g. "101". Unique identifier for the room.</td></tr>
+    <tr><td>floor</td><td>TINYINT UNSIGNED</td><td>Floor number (1–4).</td></tr>
+    <tr><td>capacity</td><td>VARCHAR(20)</td><td>Max number of beds.</td></tr>
+    <tr><td>monthly_rate</td><td>DECIMAL(10,2)</td><td>Full room rent per month. Split among tenants at invoice generation.</td></tr>
+    <tr><td>meter_number</td><td>VARCHAR(30) NULLABLE</td><td>Electricity meter ID e.g. "MTR-1001".</td></tr>
+    <tr><td>status</td><td>VARCHAR(20)</td><td>vacant | occupied | maintenance.</td></tr>
+  </table>
+
+  <h3>3.4 tenants</h3>
+  <table>
+    <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+    <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+    <tr><td class="fk">user_id</td><td>BIGINT UNSIGNED UNIQUE</td><td>FK → users. 1:1 with a user account.</td></tr>
+    <tr><td>birthdate</td><td>DATE NULLABLE</td><td></td></tr>
+    <tr><td>id_type</td><td>VARCHAR(50) NULLABLE</td><td>National ID, Passport, Student ID, Driver's License, PRC ID, UMID.</td></tr>
+    <tr><td>id_number</td><td>VARCHAR(50) NULLABLE</td><td>Document number.</td></tr>
+    <tr><td>emergency_name</td><td>VARCHAR(255) NULLABLE</td><td>Emergency contact name.</td></tr>
+    <tr><td>emergency_phone</td><td>VARCHAR(30) NULLABLE</td><td>Emergency contact phone.</td></tr>
+  </table>
+
+  <h3>3.5 contracts</h3>
+  <table>
+    <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+    <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+    <tr><td class="fk">room_id</td><td>BIGINT UNSIGNED</td><td>FK → rooms, CASCADE.</td></tr>
+    <tr><td class="fk">created_by</td><td>BIGINT UNSIGNED NULLABLE</td><td>FK → users, nullOnDelete.</td></tr>
+    <tr><td>start_date / end_date</td><td>DATE</td><td>Lease period.</td></tr>
+    <tr><td>monthly_rent</td><td>DECIMAL(10,2) NULLABLE</td><td>Legacy field. Effective rent derives from rooms.monthly_rate.</td></tr>
+    <tr><td>due_day</td><td>TINYINT(1–28)</td><td>Day of month rent is due. Default 5.</td></tr>
+    <tr><td>deposit_required</td><td>DECIMAL(10,2)</td><td>Required security deposit amount.</td></tr>
+    <tr><td>deposit_collected</td><td>DECIMAL(10,2)</td><td>Amount actually collected.</td></tr>
+    <tr><td>status</td><td>VARCHAR(20)</td><td>active | ended | ending_soon.</td></tr>
+  </table>
+
+  <h3>3.6 contract_tenants <span style="color:#b45309;font-size:9pt">«junction table»</span></h3>
+  <table>
+    <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+    <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+    <tr><td class="fk">contract_id</td><td>BIGINT UNSIGNED</td><td>FK → contracts, CASCADE.</td></tr>
+    <tr><td class="fk">tenant_id</td><td>BIGINT UNSIGNED</td><td>FK → tenants, CASCADE.</td></tr>
+    <tr><td>joined_on</td><td>DATE NULLABLE</td><td>Date tenant was added to the contract.</td></tr>
+    <tr><td>left_on</td><td>DATE NULLABLE</td><td>NULL = still active. DATE = when tenant left.</td></tr>
+  </table>
+
+  <h3>3.7 meter_readings</h3>
+  <table>
+    <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+    <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+    <tr><td class="fk">room_id</td><td>BIGINT UNSIGNED</td><td>FK → rooms, CASCADE.</td></tr>
+    <tr><td>reading_month</td><td>VARCHAR(7)</td><td>"YYYY-MM". UNIQUE together with room_id.</td></tr>
+    <tr><td>previous_kwh</td><td>DECIMAL(10,1)</td><td>Meter value at start of month.</td></tr>
+    <tr><td>current_kwh</td><td>DECIMAL(10,1)</td><td>Meter value at end of month.</td></tr>
+    <tr><td>kwh_used</td><td>DECIMAL(10,1)</td><td>Computed: current − previous. Used for billing.</td></tr>
+    <tr><td class="fk">recorded_by</td><td>BIGINT UNSIGNED NULLABLE</td><td>FK → users, nullOnDelete.</td></tr>
+  </table>
+
+  <h3>3.8 settings</h3>
+  <table>
+    <tr><th>Column</th><th>Description</th></tr>
+    <tr><td class="pk">id</td><td>PK.</td></tr>
+    <tr><td>key</td><td>Setting name: electricity_rate, default_due_day, late_after_days, overdue_grace_days, invoice_generated_on.</td></tr>
+    <tr><td>value</td><td>DECIMAL(12,4). Numeric value of the setting.</td></tr>
+    <tr><td>effective_from</td><td>DATE NULLABLE. For electricity_rate: the date this rate took effect. NULL for simple settings.</td></tr>
+    <tr><td class="fk">set_by</td><td>FK → users. Who set this value.</td></tr>
+  </table>
+  <div class="note">Electricity rate is versioned: multiple rows with <code>key='electricity_rate'</code> and different <code>effective_from</code> dates. The most recent rate ≤ today is used for new invoices.</div>
+
+  <h3>3.9 invoices</h3>
+  <table>
+    <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+    <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+    <tr><td>invoice_number</td><td>VARCHAR(30) UNIQUE</td><td>"INV-YYMM-{room}" e.g. "INV-2609-101".</td></tr>
+    <tr><td class="fk">contract_id</td><td>BIGINT UNSIGNED</td><td>FK → contracts, CASCADE.</td></tr>
+    <tr><td>tenant_count</td><td>TINYINT UNSIGNED</td><td>Snapshot of tenant count at generation. Used for rent splitting.</td></tr>
+    <tr><td>billing_month</td><td>VARCHAR(7)</td><td>"YYYY-MM".</td></tr>
+    <tr><td>due_date</td><td>DATE</td><td>Derived from contract.due_day.</td></tr>
+    <tr><td>rent_amount</td><td>DECIMAL(10,2)</td><td>Full room rent (= rooms.monthly_rate).</td></tr>
+    <tr><td>electricity_amount</td><td>DECIMAL(10,2)</td><td>kwh_used × current rate.</td></tr>
+    <tr><td>total_amount</td><td>DECIMAL(10,2)</td><td>rent + electricity.</td></tr>
+    <tr><td>amount_paid</td><td>DECIMAL(10,2)</td><td>Sum of all tenant_payments.amount_paid. Recomputed on each payment.</td></tr>
+    <tr><td>status</td><td>VARCHAR(20)</td><td>pending | partial | late | overdue | paid | void.</td></tr>
+    <tr><td>paymongo_link_id</td><td>VARCHAR(60) NULLABLE</td><td>For webhook matching.</td></tr>
+  </table>
+
+  <h3>3.10 tenant_payments</h3>
+  <p><strong>The core per-tenant billing table.</strong> One row per (invoice, tenant) pair. UNIQUE on (invoice_id, tenant_id).</p>
+  <table>
+    <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+    <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+    <tr><td class="fk">invoice_id</td><td>BIGINT UNSIGNED</td><td>FK → invoices, CASCADE.</td></tr>
+    <tr><td class="fk">tenant_id</td><td>BIGINT UNSIGNED</td><td>FK → tenants, CASCADE.</td></tr>
+    <tr><td>share_amount</td><td>DECIMAL(10,2)</td><td>total_amount ÷ tenant_count. Each tenant's portion.</td></tr>
+    <tr><td>amount_paid</td><td>DECIMAL(10,2)</td><td>How much this tenant has actually paid.</td></tr>
+    <tr><td>status</td><td>VARCHAR(20)</td><td>pending | paid | late | overdue | void.</td></tr>
+    <tr><td>method</td><td>VARCHAR(30) NULLABLE</td><td>Payment method used.</td></tr>
+    <tr><td>paid_at</td><td>TIMESTAMP NULLABLE</td><td>When fully paid.</td></tr>
+    <tr><td>paymongo_link_id</td><td>VARCHAR(60) NULLABLE</td><td>Per-tenant PayMongo link for webhook matching.</td></tr>
+  </table>
+
+  <h3>3.11 payments</h3>
+  <p>Immutable transaction log. Every peso received creates one row here.</p>
+  <table>
+    <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+    <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+    <tr><td class="fk">invoice_id</td><td>BIGINT UNSIGNED</td><td>FK → invoices, CASCADE.</td></tr>
+    <tr><td class="fk">tenant_payment_id</td><td>BIGINT UNSIGNED NULLABLE</td><td>FK → tenant_payments, nullOnDelete. Links to specific tenant's share.</td></tr>
+    <tr><td>amount</td><td>DECIMAL(10,2)</td><td>Amount received.</td></tr>
+    <tr><td>method</td><td>VARCHAR(30)</td><td>cash | bank_transfer | gcash | maya | card | qr_ph | paymongo.</td></tr>
+    <tr><td>received_at</td><td>DATE</td><td>Date money was received.</td></tr>
+    <tr><td>reference</td><td>VARCHAR(100) NULLABLE</td><td>PayMongo transaction ID or manual ref.</td></tr>
+    <tr><td>recorded_by_type</td><td>VARCHAR(20)</td><td>staff | paymongo.</td></tr>
+    <tr><td class="fk">recorded_by_user</td><td>BIGINT UNSIGNED NULLABLE</td><td>FK → users. NULL for PayMongo webhook payments.</td></tr>
+  </table>
+
+  <h3>3.12 deposit_entries</h3>
+  <table>
+    <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+    <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+    <tr><td class="fk">contract_id</td><td>BIGINT UNSIGNED</td><td>FK → contracts, CASCADE.</td></tr>
+    <tr><td>type</td><td>VARCHAR(20)</td><td>collected | deduction | refund.</td></tr>
+    <tr><td>amount</td><td>DECIMAL(10,2)</td><td>Amount.</td></tr>
+    <tr><td>date</td><td>DATE</td><td>Date of entry.</td></tr>
+    <tr><td>reason</td><td>VARCHAR(255) NULLABLE</td><td>Reason for deduction/refund.</td></tr>
+    <tr><td class="fk">recorded_by</td><td>BIGINT UNSIGNED NULLABLE</td><td>FK → users, nullOnDelete.</td></tr>
+  </table>
+
+  <h3>3.13 audit_logs</h3>
+  <p>Insert-only event log. No <code>updated_at</code>. Cannot be modified.</p>
+  <table>
+    <tr><th>Column</th><th>Description</th></tr>
+    <tr><td class="pk">id</td><td>PK.</td></tr>
+    <tr><td class="fk">user_id</td><td>NULLABLE FK → users. NULL for system-generated events.</td></tr>
+    <tr><td>user_label</td><td>Snapshot of user name at time of action. Preserved if user is deleted.</td></tr>
+    <tr><td>action</td><td>Created, Updated, Voided, Payment, Rate, Generated, etc.</td></tr>
+    <tr><td>record_type</td><td>Room, Invoice, Contract, Tenant, Setting, etc.</td></tr>
+    <tr><td>record_id</td><td>NULLABLE. ID of the affected record.</td></tr>
+    <tr><td>description</td><td>TEXT. Human-readable description of the change.</td></tr>
+    <tr><td>created_at</td><td>Auto-set on insert. No updated_at.</td></tr>
+  </table>
+</div>
+
+<!-- ═══ SECTION 4: RELATIONSHIPS ═══ -->
+<div class="section" id="relationships">
+  <h2>4. Relationship Summary</h2>
+  <table>
+    <tr><th>From</th><th>Notation</th><th>To</th><th>Cardinality</th><th>Notes</th></tr>
+    <tr><td>users</td><td>||──o|</td><td>tenants</td><td>1:0..1</td><td>Only for users with role=tenant.</td></tr>
+    <tr><td>rooms</td><td>||──o{</td><td>contracts</td><td>1:0..*</td><td>One room, multiple contracts over time.</td></tr>
+    <tr><td>rooms</td><td>||──o{</td><td>meter_readings</td><td>1:0..*</td><td>One reading per room per month.</td></tr>
+    <tr><td>contracts</td><td>}|──|{</td><td>tenants</td><td>M:M</td><td>Via contract_tenants junction. Multiple tenants share one contract.</td></tr>
+    <tr><td>contracts</td><td>||──o{</td><td>invoices</td><td>1:0..*</td><td>One invoice per billing month.</td></tr>
+    <tr><td>contracts</td><td>||──o{</td><td>deposit_entries</td><td>1:0..*</td><td>Track collected/deducted deposit amounts.</td></tr>
+    <tr><td>invoices</td><td>||──|{</td><td>tenant_payments</td><td>1:1..*</td><td>One per tenant. UNIQUE on (invoice_id, tenant_id).</td></tr>
+    <tr><td>invoices</td><td>||──o{</td><td>payments</td><td>1:0..*</td><td>All payment transactions against this invoice.</td></tr>
+    <tr><td>tenant_payments</td><td>||──o{</td><td>payments</td><td>1:0..1</td><td>NULLABLE link. Identifies which tenant's share was settled.</td></tr>
+  </table>
+</div>
+
+<!-- ═══ SECTION 5: BUSINESS RULES ═══ -->
+<div class="section" id="business-rules">
+  <h2>5. Key Business Rules</h2>
+
+  <h3>5.1 Rent Splitting</h3>
+  <p><code>rooms.monthly_rate</code> ÷ <code>invoices.tenant_count</code> = <code>tenant_payments.share_amount</code></p>
+  <p>The split is computed once at invoice generation and stored immutably in <code>tenant_payments</code>.</p>
+
+  <h3>5.2 Invoice Status Derivation</h3>
+  <table>
+    <tr><th>Tenant payment statuses</th><th>Invoice status</th></tr>
+    <tr><td>All = paid</td><td>paid</td></tr>
+    <tr><td>At least one paid, rest anything</td><td>partial</td></tr>
+    <tr><td>None paid, all unpaid = overdue</td><td>overdue</td></tr>
+    <tr><td>None paid, all unpaid = late</td><td>late</td></tr>
+    <tr><td>None paid, any late/overdue mixed with pending</td><td>late (escalated)</td></tr>
+    <tr><td>None paid, all = pending (no due date passed)</td><td>pending</td></tr>
+  </table>
+
+  <h3>5.3 Electricity Rate Versioning</h3>
+  <p>Multiple rows in <code>settings</code> with <code>key='electricity_rate'</code> and different <code>effective_from</code> dates. The query: <em>WHERE key='electricity_rate' AND effective_from &lt;= billing_month ORDER BY effective_from DESC LIMIT 1</em>.</p>
+
+  <h3>5.4 Audit Log Immutability</h3>
+  <p>No UPDATE or DELETE operations on <code>audit_logs</code> exist in the application. No <code>updated_at</code> column. Append-only by design.</p>
+
+  <h3>5.5 PayMongo Webhook Matching</h3>
+  <p>Match order: (1) <code>tenant_payments.paymongo_link_id</code> → (2) <code>invoices.paymongo_link_id</code> → (3) invoice number in payment description/remarks.</p>
+</div>
+
+<!-- ═══ SECTION 6: INDEXES ═══ -->
+<div class="section page-break" id="indexes">
+  <h2>6. Indexes &amp; Constraints</h2>
+  <table>
+    <tr><th>Table</th><th>Type</th><th>Column(s)</th></tr>
+    <tr><td>users</td><td>UNIQUE</td><td>email</td></tr>
+    <tr><td>tenants</td><td>UNIQUE FK</td><td>user_id</td></tr>
+    <tr><td>rooms</td><td>UNIQUE</td><td>room_number</td></tr>
+    <tr><td>invoices</td><td>UNIQUE</td><td>invoice_number</td></tr>
+    <tr><td>meter_readings</td><td>UNIQUE</td><td>(room_id, reading_month)</td></tr>
+    <tr><td>tenant_payments</td><td>UNIQUE</td><td>(invoice_id, tenant_id)</td></tr>
+    <tr><td>settings</td><td>INDEX</td><td>(key, effective_from)</td></tr>
+    <tr><td>contracts</td><td>CASCADE FK</td><td>room_id → rooms.id</td></tr>
+    <tr><td>invoices</td><td>CASCADE FK</td><td>contract_id → contracts.id</td></tr>
+    <tr><td>tenant_payments</td><td>CASCADE FK</td><td>invoice_id → invoices.id, tenant_id → tenants.id</td></tr>
+    <tr><td>payments</td><td>nullOnDelete FK</td><td>tenant_payment_id → tenant_payments.id</td></tr>
+  </table>
+</div>
+
+<div style="text-align:center;padding:30px;color:#94a3b8;font-size:9pt;border-top:1px solid #e2e8f0;margin-top:40px">
+  Dorm Manager Database Design Document &nbsp;·&nbsp; Version 1.0 &nbsp;·&nbsp; September 2026
+</div>
+
+</body>
+</html>
