@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Dorm Manager — Database Design</title>
+<style>
+  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #1a1a1a; margin: 0; padding: 40px 60px; line-height: 1.6; }
+  h1 { font-size: 26pt; color: #1d4ed8; margin-bottom: 4px; }
+  h2 { font-size: 16pt; color: #1d4ed8; border-bottom: 2px solid #1d4ed8; padding-bottom: 4px; margin-top: 32px; }
+  h3 { font-size: 13pt; color: #374151; margin-top: 20px; margin-bottom: 6px; }
+  .cover { text-align: center; padding: 80px 0 60px; border-bottom: 3px solid #1d4ed8; margin-bottom: 40px; }
+  .cover .logo { width: 64px; height: 64px; background: #1d4ed8; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: white; font-size: 28pt; font-weight: bold; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 24px; font-size: 10pt; }
+  th { background: #1d4ed8; color: white; padding: 8px 12px; text-align: left; }
+  td { padding: 7px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  tr:nth-child(even) td { background: #f9fafb; }
+  .pk  { color: #dc2626; font-weight: bold; font-family: Consolas, monospace; }
+  .fk  { color: #2563eb; font-family: Consolas, monospace; }
+  code { background: #f3f4f6; border-radius: 4px; padding: 1px 5px; font-family: Consolas, monospace; font-size: 10pt; }
+  .toc { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px 28px; margin-bottom: 32px; }
+  .toc h3 { margin-top: 0; color: #1d4ed8; }
+  .toc ol { margin: 0; padding-left: 20px; }
+  .toc li { margin: 4px 0; }
+  .toc a { color: #1d4ed8; text-decoration: none; }
+  .note { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 10px 14px; margin: 12px 0; border-radius: 0 6px 6px 0; font-size: 10pt; }
+  /* ERD diagram using CSS */
+  .erd-container { overflow-x: auto; padding: 20px 0; }
+  .erd { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .entity { border: 2px solid #1d4ed8; border-radius: 8px; min-width: 180px; font-size: 9pt; overflow: hidden; margin-bottom: 16px; }
+  .entity-name { background: #1d4ed8; color: white; padding: 6px 12px; font-weight: bold; font-size: 10pt; }
+  .entity-attr { padding: 4px 12px; border-bottom: 1px solid #e5e7eb; font-family: Consolas, monospace; }
+  .entity-attr.pk  { color: #dc2626; font-weight: bold; }
+  .entity-attr.fk  { color: #2563eb; }
+  .entity-attr.idx { color: #6b7280; }
+  .rel-note { background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 12px 16px; margin: 8px 0; font-size: 10pt; }
+  .page-break { page-break-after: always; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="logo">D</div>
+  <h1>Dorm Manager</h1>
+  <p style="font-size:18pt; font-weight:600; color:#374151">Database Design Document</p>
+  <p>Entity Relationship Diagram &amp; Table Specifications</p>
+  <p style="color:#9ca3af; font-size:10pt">Version 1.0 &nbsp;·&nbsp; September 2026</p>
+</div>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ol>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#erd">Entity Relationship Diagram</a></li>
+    <li><a href="#tables">Table Specifications</a>
+      <ol>
+        <li><a href="#t-users">users</a></li>
+        <li><a href="#t-roles">roles / model_has_roles (Spatie)</a></li>
+        <li><a href="#t-rooms">rooms</a></li>
+        <li><a href="#t-tenants">tenants</a></li>
+        <li><a href="#t-contracts">contracts</a></li>
+        <li><a href="#t-contract-tenants">contract_tenants</a></li>
+        <li><a href="#t-meter-readings">meter_readings</a></li>
+        <li><a href="#t-settings">settings</a></li>
+        <li><a href="#t-invoices">invoices</a></li>
+        <li><a href="#t-tenant-payments">tenant_payments</a></li>
+        <li><a href="#t-payments">payments</a></li>
+        <li><a href="#t-deposit-entries">deposit_entries</a></li>
+        <li><a href="#t-audit-logs">audit_logs</a></li>
+      </ol>
+    </li>
+    <li><a href="#relationships">Relationship Summary</a></li>
+    <li><a href="#business-rules">Key Business Rules Enforced by the Schema</a></li>
+    <li><a href="#indexes">Indexes &amp; Constraints</a></li>
+  </ol>
+</div>
+
+<!-- SECTION 1 -->
+<h2 id="overview">1. Overview</h2>
+<p>Dorm Manager uses a <strong>MySQL</strong> relational database managed through Laravel's Eloquent ORM and migration system. The schema is designed around the core billing workflow:</p>
+<ol>
+  <li>A <strong>Room</strong> has a monthly rate and a capacity (max beds).</li>
+  <li>A <strong>Contract</strong> links one or more <strong>Tenants</strong> to a Room for a period.</li>
+  <li>Each month, one <strong>Invoice</strong> is generated per Room (per active contract).</li>
+  <li>The invoice is automatically split into per-tenant <strong>TenantPayment</strong> rows.</li>
+  <li>Each <strong>Payment</strong> records money received and optionally links to the specific TenantPayment row it settles.</li>
+</ol>
+<p>Role-based access control is provided by the <strong>Spatie Laravel Permission</strong> package (v6), which adds the <code>roles</code>, <code>permissions</code>, <code>model_has_roles</code>, and related tables.</p>
+
+<div class="page-break"></div>
+
+<!-- SECTION 2 — ERD -->
+<h2 id="erd">2. Entity Relationship Diagram</h2>
+<p>The diagram below shows all tables and their primary relationships. Primary keys are shown in <span style="color:#dc2626;font-weight:bold">red</span>, foreign keys in <span style="color:#2563eb">blue</span>.</p>
+
+<div class="erd-container">
+<div class="erd">
+
+  <div class="entity">
+    <div class="entity-name">users</div>
+    <div class="entity-attr pk">PK id</div>
+    <div class="entity-attr">name</div>
+    <div class="entity-attr idx">email (unique)</div>
+    <div class="entity-attr">phone</div>
+    <div class="entity-attr">password</div>
+    <div class="entity-attr">is_active</div>
+    <div class="entity-attr">email_verified_at</div>
+    <div class="entity-attr">remember_token</div>
+  </div>
+
+  <div class="entity">
+    <div class="entity-name">roles <small>(Spatie)</small></div>
+    <div class="entity-attr pk">PK id</div>
+    <div class="entity-attr">name</div>
+    <div class="entity-attr">guard_name</div>
+  </div>
+
+  <div class="entity">
+    <div class="entity-name">model_has_roles <small>(Spatie)</small></div>
+    <div class="entity-attr fk">FK role_id → roles</div>
+    <div class="entity-attr">model_type</div>
+    <div class="entity-attr fk">FK model_id → users</div>
+  </div>
+
+  <div class="entity">
+    <div class="entity-name">tenants</div>
+    <div class="entity-attr pk">PK id</div>
+    <div class="entity-attr fk">FK user_id → users (unique)</div>
+    <div class="entity-attr">birthdate</div>
+    <div class="entity-attr">id_type</div>
+    <div class="entity-attr">id_number</div>
+    <div class="entity-attr">emergency_name</div>
+    <div class="entity-attr">emergency_phone</div>
+  </div>
+
+  <div class="entity">
+    <div class="entity-name">rooms</div>
+    <div class="entity-attr pk">PK id</div>
+    <div class="entity-attr idx">room_number (unique)</div>
+    <div class="entity-attr">floor</div>
+    <div class="entity-attr">capacity</div>
+    <div class="entity-attr">monthly_rate</div>
+    <div class="entity-attr">meter_number</div>
+    <div class="entity-attr">status</div>
+  </div>
+
+  <div class="entity">
+    <div class="entity-name">contracts</div>
+    <div class="entity-attr pk">PK id</div>
+    <div class="entity-attr fk">FK room_id → rooms</div>
+    <div class="entity-attr">start_date</div>
+    <div class="entity-attr">end_date</div>
+    <div class="entity-attr">monthly_rent <small>(nullable)</small></div>
+    <div class="entity-attr">due_day</div>
+    <div class="entity-attr">deposit_required</div>
+    <div class="entity-attr">deposit_collected</div>
+    <div class="entity-attr">status</div>
+    <div class="entity-attr fk">FK created_by → users</div>
+  </div>
+
+  <div class="entity">
+    <div class="entity-name">contract_tenants</div>
+    <div class="entity-attr pk">PK id</div>
+    <div class="entity-attr fk">FK contract_id → contracts</div>
+    <div class="entity-attr fk">FK tenant_id → tenants</div>
+    <div class="entity-attr">joined_on</div>
+    <div class="entity-attr">left_on</div>
+  </div>
+
+  <div class="entity">
+    <div class="entity-name">meter_readings</div>
+    <div class="entity-attr pk">PK id</div>
+    <div class="entity-attr fk">FK room_id → rooms</div>
+    <div class="entity-attr idx">reading_month (unique w/ room_id)</div>
+    <div class="entity-attr">previous_kwh</div>
+    <div class="entity-attr">current_kwh</div>
+    <div class="entity-attr">kwh_used</div>
+    <div class="entity-attr fk">FK recorded_by → users</div>
+  </div>
+
+  <div class="entity">
+    <div class="entity-name">settings</div>
+    <div class="entity-attr pk">PK id</div>
+    <div class="entity-attr">key</div>
+    <div class="entity-attr">value</div>
+    <div class="entity-attr">effective_from</div>
+    <div class="entity-attr fk">FK set_by → users</div>
+  </div>
+
+  <div class="entity">
+    <div class="entity-name">invoices</div>
+    <div class="entity-attr pk">PK id</div>
+    <div class="entity-attr idx">invoice_number (unique)</div>
+    <div class="entity-attr fk">FK contract_id → contracts</div>
+    <div class="entity-attr">tenant_count</div>
+    <div class="entity-attr">billing_month</div>
+    <div class="entity-attr">due_date</div>
+    <div class="entity-attr">rent_amount</div>
+    <div class="entity-attr">electricity_amount</div>
+    <div class="entity-attr">total_amount</div>
+    <div class="entity-attr">amount_paid</div>
+    <div class="entity-attr">status</div>
+    <div class="entity-attr">paid_at</div>
+    <div class="entity-attr">paymongo_link_id</div>
+    <div class="entity-attr fk">FK created_by → users</div>
+  </div>
+
+  <div class="entity">
+    <div class="entity-name">tenant_payments</div>
+    <div class="entity-attr pk">PK id</div>
+    <div class="entity-attr fk">FK invoice_id → invoices</div>
+    <div class="entity-attr fk">FK tenant_id → tenants</div>
+    <div class="entity-attr">share_amount</div>
+    <div class="entity-attr">amount_paid</div>
+    <div class="entity-attr">status</div>
+    <div class="entity-attr">method</div>
+    <div class="entity-attr">paid_at</div>
+    <div class="entity-attr">paymongo_link_id</div>
+    <div class="entity-attr idx">UNIQUE (invoice_id, tenant_id)</div>
+  </div>
+
+  <div class="entity">
+    <div class="entity-name">payments</div>
+    <div class="entity-attr pk">PK id</div>
+    <div class="entity-attr fk">FK invoice_id → invoices</div>
+    <div class="entity-attr fk">FK tenant_payment_id → tenant_payments</div>
+    <div class="entity-attr">amount</div>
+    <div class="entity-attr">method</div>
+    <div class="entity-attr">received_at</div>
+    <div class="entity-attr">reference</div>
+    <div class="entity-attr">notes</div>
+    <div class="entity-attr">recorded_by_type</div>
+    <div class="entity-attr fk">FK recorded_by_user → users</div>
+  </div>
+
+  <div class="entity">
+    <div class="entity-name">deposit_entries</div>
+    <div class="entity-attr pk">PK id</div>
+    <div class="entity-attr fk">FK contract_id → contracts</div>
+    <div class="entity-attr">type</div>
+    <div class="entity-attr">amount</div>
+    <div class="entity-attr">date</div>
+    <div class="entity-attr">reason</div>
+    <div class="entity-attr fk">FK recorded_by → users</div>
+  </div>
+
+  <div class="entity">
+    <div class="entity-name">audit_logs</div>
+    <div class="entity-attr pk">PK id</div>
+    <div class="entity-attr fk">FK user_id → users</div>
+    <div class="entity-attr">user_label</div>
+    <div class="entity-attr">action</div>
+    <div class="entity-attr">record_type</div>
+    <div class="entity-attr">record_id</div>
+    <div class="entity-attr">description</div>
+    <div class="entity-attr">created_at</div>
+  </div>
+
+</div>
+</div>
+
+<div class="note">📝 <strong>ERD Reading Guide:</strong> Each box is a table. <span style="color:#dc2626;font-weight:bold">Red PK</span> = Primary Key. <span style="color:#2563eb">Blue FK</span> = Foreign Key pointing to another table. All FKs cascade on delete unless noted as nullOnDelete.</div>
+
+<div class="page-break"></div>
+
+<!-- SECTION 3 — TABLE SPECS -->
+<h2 id="tables">3. Table Specifications</h2>
+
+<h3 id="t-users">3.1 users</h3>
+<p>Stores all system accounts regardless of role (owner, employee, tenant).</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th></tr>
+  <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK, auto-increment</td><td>Unique identifier.</td></tr>
+  <tr><td>name</td><td>VARCHAR(255)</td><td>NOT NULL</td><td>Full name.</td></tr>
+  <tr><td>email</td><td>VARCHAR(255)</td><td>NOT NULL, UNIQUE</td><td>Login email address.</td></tr>
+  <tr><td>email_verified_at</td><td>TIMESTAMP</td><td>NULLABLE</td><td>Email verification timestamp (unused currently).</td></tr>
+  <tr><td>phone</td><td>VARCHAR(30)</td><td>NULLABLE</td><td>Contact phone number.</td></tr>
+  <tr><td>password</td><td>VARCHAR(255)</td><td>NOT NULL</td><td>Bcrypt-hashed password.</td></tr>
+  <tr><td>is_active</td><td>TINYINT(1)</td><td>NOT NULL, DEFAULT 1</td><td>1 = active, 0 = disabled. Disabled accounts cannot log in.</td></tr>
+  <tr><td>remember_token</td><td>VARCHAR(100)</td><td>NULLABLE</td><td>Laravel "remember me" token.</td></tr>
+  <tr><td>created_at / updated_at</td><td>TIMESTAMP</td><td>NULLABLE</td><td>Automatic timestamps.</td></tr>
+</table>
+
+<h3 id="t-roles">3.2 roles / model_has_roles (Spatie Permission)</h3>
+<p>Managed by the <code>spatie/laravel-permission</code> package. Three roles are seeded: <code>owner</code>, <code>employee</code>, <code>tenant</code>.</p>
+<table>
+  <tr><th>Table</th><th>Key Columns</th><th>Purpose</th></tr>
+  <tr><td>roles</td><td>id, name, guard_name</td><td>Defines the three roles.</td></tr>
+  <tr><td>model_has_roles</td><td>role_id, model_type, model_id</td><td>Assigns roles to users (polymorphic).</td></tr>
+  <tr><td>permissions</td><td>id, name, guard_name</td><td>Not used (all access control is role-based).</td></tr>
+</table>
+
+<h3 id="t-rooms">3.3 rooms</h3>
+<p>Each physical room in the dormitory.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th></tr>
+  <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK</td><td></td></tr>
+  <tr><td>room_number</td><td>VARCHAR(10)</td><td>NOT NULL, UNIQUE</td><td>Room identifier e.g. "101".</td></tr>
+  <tr><td>floor</td><td>TINYINT UNSIGNED</td><td>NOT NULL</td><td>Floor number (1–4).</td></tr>
+  <tr><td>capacity</td><td>VARCHAR(20)</td><td>NOT NULL</td><td>Max number of beds (numeric, stored as string for legacy reasons).</td></tr>
+  <tr><td>monthly_rate</td><td>DECIMAL(10,2)</td><td>NOT NULL</td><td>Full room rent per month in pesos.</td></tr>
+  <tr><td>meter_number</td><td>VARCHAR(30)</td><td>NULLABLE</td><td>Electricity meter identifier e.g. "MTR-1001".</td></tr>
+  <tr><td>status</td><td>VARCHAR(20)</td><td>NOT NULL, DEFAULT 'vacant'</td><td>vacant | occupied | maintenance.</td></tr>
+</table>
+
+<h3 id="t-tenants">3.4 tenants</h3>
+<p>Tenant-specific profile data, 1:1 with a user account (user with role <code>tenant</code>).</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th></tr>
+  <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK</td><td></td></tr>
+  <tr><td class="fk">user_id</td><td>BIGINT UNSIGNED</td><td>FK → users, UNIQUE</td><td>Linked user account.</td></tr>
+  <tr><td>birthdate</td><td>DATE</td><td>NULLABLE</td><td></td></tr>
+  <tr><td>id_type</td><td>VARCHAR(50)</td><td>NULLABLE</td><td>National ID, Passport, etc.</td></tr>
+  <tr><td>id_number</td><td>VARCHAR(50)</td><td>NULLABLE</td><td>ID document number.</td></tr>
+  <tr><td>emergency_name</td><td>VARCHAR(255)</td><td>NULLABLE</td><td>Emergency contact name.</td></tr>
+  <tr><td>emergency_phone</td><td>VARCHAR(30)</td><td>NULLABLE</td><td>Emergency contact phone.</td></tr>
+</table>
+
+<h3 id="t-contracts">3.5 contracts</h3>
+<p>A rental agreement between the dorm and one or more tenants for a specific room.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints</th><th>Description</th></tr>
+  <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK</td><td></td></tr>
+  <tr><td class="fk">room_id</td><td>BIGINT UNSIGNED</td><td>FK → rooms, CASCADE</td><td>The room being contracted.</td></tr>
+  <tr><td>start_date</td><td>DATE</td><td>NOT NULL</td><td>Lease start.</td></tr>
+  <tr><td>end_date</td><td>DATE</td><td>NOT NULL</td><td>Lease end.</td></tr>
+  <tr><td>monthly_rent</td><td>DECIMAL(10,2)</td><td>NULLABLE</td><td>Kept for legacy reference; effective rent is derived from <code>rooms.monthly_rate</code>.</td></tr>
+  <tr><td>due_day</td><td>TINYINT UNSIGNED</td><td>NOT NULL, DEFAULT 5</td><td>Day of month rent is due (1–28).</td></tr>
+  <tr><td>deposit_required</td><td>DECIMAL(10,2)</td><td>NOT NULL</td><td>Required security deposit.</td></tr>
+  <tr><td>deposit_collected</td><td>DECIMAL(10,2)</td><td>NOT NULL, DEFAULT 0</td><td>Amount of deposit actually collected.</td></tr>
+  <tr><td>status</td><td>VARCHAR(20)</td><td>NOT NULL, DEFAULT 'active'</td><td>active | ended | ending_soon.</td></tr>
+  <tr><td>contract_file_path</td><td>VARCHAR(255)</td><td>NULLABLE</td><td>Path to uploaded signed contract PDF.</td></tr>
+  <tr><td class="fk">created_by</td><td>BIGINT UNSIGNED</td><td>FK → users, nullOnDelete</td><td>Staff who created the contract.</td></tr>
+</table>
+
+<h3 id="t-contract-tenants">3.6 contract_tenants</h3>
+<p>Many-to-many pivot between contracts and tenants. Tracks when each tenant joined and left.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+  <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+  <tr><td class="fk">contract_id</td><td>BIGINT UNSIGNED</td><td>FK → contracts, CASCADE.</td></tr>
+  <tr><td class="fk">tenant_id</td><td>BIGINT UNSIGNED</td><td>FK → tenants, CASCADE.</td></tr>
+  <tr><td>joined_on</td><td>DATE</td><td>Date tenant was added to the contract.</td></tr>
+  <tr><td>left_on</td><td>DATE</td><td>NULL = still active; DATE = when tenant left the room.</td></tr>
+</table>
+
+<h3 id="t-meter-readings">3.7 meter_readings</h3>
+<p>Monthly electricity meter readings per room. One row per room per month, enforced by a unique index.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+  <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+  <tr><td class="fk">room_id</td><td>BIGINT UNSIGNED</td><td>FK → rooms, CASCADE.</td></tr>
+  <tr><td>reading_month</td><td>VARCHAR(7)</td><td>"YYYY-MM" format. UNIQUE with room_id.</td></tr>
+  <tr><td>previous_kwh</td><td>DECIMAL(10,1)</td><td>Meter reading at start of month.</td></tr>
+  <tr><td>current_kwh</td><td>DECIMAL(10,1)</td><td>Meter reading at end of month.</td></tr>
+  <tr><td>kwh_used</td><td>DECIMAL(10,1)</td><td>Computed: current − previous. Used for electricity billing.</td></tr>
+  <tr><td class="fk">recorded_by</td><td>BIGINT UNSIGNED</td><td>FK → users, nullOnDelete.</td></tr>
+</table>
+
+<h3 id="t-settings">3.8 settings</h3>
+<p>Stores system configuration values including the electricity rate history and billing rules.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+  <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+  <tr><td>key</td><td>VARCHAR(60)</td><td>Setting key e.g. "electricity_rate", "default_due_day".</td></tr>
+  <tr><td>value</td><td>DECIMAL(12,4)</td><td>Numeric value.</td></tr>
+  <tr><td>effective_from</td><td>DATE</td><td>NULL for simple settings; DATE for versioned rates.</td></tr>
+  <tr><td class="fk">set_by</td><td>BIGINT UNSIGNED</td><td>FK → users, nullOnDelete. Who set this value.</td></tr>
+</table>
+<div class="note">The electricity rate is versioned — multiple rows with <code>key='electricity_rate'</code> and different <code>effective_from</code> dates. The most recent rate ≤ today is the current rate.</div>
+
+<h3 id="t-invoices">3.9 invoices</h3>
+<p>One invoice per room per billing month. Represents the full room bill (all tenants combined).</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+  <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+  <tr><td>invoice_number</td><td>VARCHAR(30)</td><td>UNIQUE. Format: "INV-YYMM-{room_number}" e.g. "INV-2609-101".</td></tr>
+  <tr><td class="fk">contract_id</td><td>BIGINT UNSIGNED</td><td>FK → contracts, CASCADE.</td></tr>
+  <tr><td>tenant_count</td><td>TINYINT UNSIGNED</td><td>Snapshot of tenants at generation time. Used for rent splitting.</td></tr>
+  <tr><td>billing_month</td><td>VARCHAR(7)</td><td>"YYYY-MM" format.</td></tr>
+  <tr><td>due_date</td><td>DATE</td><td>Derived from contract.due_day.</td></tr>
+  <tr><td>rent_amount</td><td>DECIMAL(10,2)</td><td>Full room rent for the month (= rooms.monthly_rate).</td></tr>
+  <tr><td>electricity_amount</td><td>DECIMAL(10,2)</td><td>kwh_used × current electricity rate.</td></tr>
+  <tr><td>total_amount</td><td>DECIMAL(10,2)</td><td>rent_amount + electricity_amount.</td></tr>
+  <tr><td>amount_paid</td><td>DECIMAL(10,2)</td><td>Sum of all tenant payment amounts. Recomputed on each payment.</td></tr>
+  <tr><td>status</td><td>VARCHAR(20)</td><td>pending | partial | late | overdue | paid | void.</td></tr>
+  <tr><td>paid_at</td><td>TIMESTAMP</td><td>NULLABLE. Set when all tenants have paid.</td></tr>
+  <tr><td>paymongo_link_id</td><td>VARCHAR(60)</td><td>NULLABLE. PayMongo link ID for webhook matching.</td></tr>
+  <tr><td class="fk">created_by</td><td>BIGINT UNSIGNED</td><td>FK → users, nullOnDelete.</td></tr>
+</table>
+
+<h3 id="t-tenant-payments">3.10 tenant_payments</h3>
+<p>Per-tenant payment record for an invoice. One row per (invoice, tenant) pair. <strong>This is the key table that enables per-tenant billing.</strong></p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+  <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+  <tr><td class="fk">invoice_id</td><td>BIGINT UNSIGNED</td><td>FK → invoices, CASCADE.</td></tr>
+  <tr><td class="fk">tenant_id</td><td>BIGINT UNSIGNED</td><td>FK → tenants, CASCADE.</td></tr>
+  <tr><td>share_amount</td><td>DECIMAL(10,2)</td><td>Each tenant's portion: (rent + electricity) ÷ tenant_count.</td></tr>
+  <tr><td>amount_paid</td><td>DECIMAL(10,2)</td><td>How much this tenant has actually paid.</td></tr>
+  <tr><td>status</td><td>VARCHAR(20)</td><td>pending | paid | late | overdue | void.</td></tr>
+  <tr><td>method</td><td>VARCHAR(30)</td><td>NULLABLE. Payment method used.</td></tr>
+  <tr><td>paid_at</td><td>TIMESTAMP</td><td>NULLABLE. When this tenant's share was fully paid.</td></tr>
+  <tr><td>paymongo_link_id</td><td>VARCHAR(60)</td><td>NULLABLE. PayMongo link created for this specific tenant's share.</td></tr>
+  <tr><td colspan="4"><em>UNIQUE index on (invoice_id, tenant_id)</em></td></tr>
+</table>
+
+<h3 id="t-payments">3.11 payments</h3>
+<p>Immutable transaction log. Every peso received is recorded here, whether by PayMongo webhook or by staff.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+  <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+  <tr><td class="fk">invoice_id</td><td>BIGINT UNSIGNED</td><td>FK → invoices, CASCADE. Which room invoice this payment belongs to.</td></tr>
+  <tr><td class="fk">tenant_payment_id</td><td>BIGINT UNSIGNED</td><td>NULLABLE FK → tenant_payments. Which specific tenant's share this settles.</td></tr>
+  <tr><td>amount</td><td>DECIMAL(10,2)</td><td>Amount received.</td></tr>
+  <tr><td>method</td><td>VARCHAR(30)</td><td>cash | bank_transfer | gcash | maya | card | qr_ph | paymongo.</td></tr>
+  <tr><td>received_at</td><td>DATE</td><td>Date money was received.</td></tr>
+  <tr><td>reference</td><td>VARCHAR(100)</td><td>NULLABLE. PayMongo transaction ID or manual reference number.</td></tr>
+  <tr><td>notes</td><td>VARCHAR(255)</td><td>NULLABLE. Staff notes.</td></tr>
+  <tr><td>recorded_by_type</td><td>VARCHAR(20)</td><td>staff | paymongo. Indicates source.</td></tr>
+  <tr><td class="fk">recorded_by_user</td><td>BIGINT UNSIGNED</td><td>NULLABLE FK → users. NULL for PayMongo webhook payments.</td></tr>
+</table>
+
+<h3 id="t-deposit-entries">3.12 deposit_entries</h3>
+<p>Tracks deposit collections and deductions per contract.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+  <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+  <tr><td class="fk">contract_id</td><td>BIGINT UNSIGNED</td><td>FK → contracts, CASCADE.</td></tr>
+  <tr><td>type</td><td>VARCHAR(20)</td><td>collected | deduction | refund.</td></tr>
+  <tr><td>amount</td><td>DECIMAL(10,2)</td><td>Amount.</td></tr>
+  <tr><td>date</td><td>DATE</td><td>Date of entry.</td></tr>
+  <tr><td>reason</td><td>VARCHAR(255)</td><td>NULLABLE. Reason for deduction/refund.</td></tr>
+  <tr><td class="fk">recorded_by</td><td>BIGINT UNSIGNED</td><td>FK → users, nullOnDelete.</td></tr>
+</table>
+
+<h3 id="t-audit-logs">3.13 audit_logs</h3>
+<p>Insert-only event log. No <code>updated_at</code> column. Can never be modified once written.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+  <tr><td class="pk">id</td><td>BIGINT UNSIGNED</td><td>PK.</td></tr>
+  <tr><td class="fk">user_id</td><td>BIGINT UNSIGNED</td><td>NULLABLE FK → users. NULL if system-generated.</td></tr>
+  <tr><td>user_label</td><td>VARCHAR(100)</td><td>Snapshot of user name at time of action. Preserved even if user is deleted.</td></tr>
+  <tr><td>action</td><td>VARCHAR(50)</td><td>Created, Updated, Voided, Payment, Rate, etc.</td></tr>
+  <tr><td>record_type</td><td>VARCHAR(60)</td><td>Room, Invoice, Contract, Tenant, etc.</td></tr>
+  <tr><td>record_id</td><td>BIGINT UNSIGNED</td><td>NULLABLE. ID of the affected record.</td></tr>
+  <tr><td>description</td><td>TEXT</td><td>Human-readable description of the change.</td></tr>
+  <tr><td>created_at</td><td>TIMESTAMP</td><td>Auto-set on insert. No updated_at.</td></tr>
+</table>
+
+<div class="page-break"></div>
+
+<!-- SECTION 4 -->
+<h2 id="relationships">4. Relationship Summary</h2>
+<table>
+  <tr><th>From</th><th>Relationship</th><th>To</th><th>Notes</th></tr>
+  <tr><td>users</td><td>hasOne</td><td>tenants</td><td>Only for users with role=tenant.</td></tr>
+  <tr><td>users</td><td>belongsToMany (via model_has_roles)</td><td>roles</td><td>Managed by Spatie.</td></tr>
+  <tr><td>rooms</td><td>hasMany</td><td>contracts</td><td>A room can have multiple contracts over time, but only one active.</td></tr>
+  <tr><td>rooms</td><td>hasMany</td><td>meter_readings</td><td>One reading per room per month.</td></tr>
+  <tr><td>contracts</td><td>belongsTo</td><td>rooms</td><td></td></tr>
+  <tr><td>contracts</td><td>belongsToMany (via contract_tenants)</td><td>tenants</td><td>Multiple tenants per contract (room-sharing).</td></tr>
+  <tr><td>contracts</td><td>hasMany</td><td>invoices</td><td>One invoice per billing month.</td></tr>
+  <tr><td>tenants</td><td>belongsToMany (via contract_tenants)</td><td>contracts</td><td>Tenant's rental history.</td></tr>
+  <tr><td>invoices</td><td>hasMany</td><td>tenant_payments</td><td>One row per tenant in the room at billing time.</td></tr>
+  <tr><td>invoices</td><td>hasMany</td><td>payments</td><td>All payment transactions against this invoice.</td></tr>
+  <tr><td>tenant_payments</td><td>belongsTo</td><td>invoices</td><td></td></tr>
+  <tr><td>tenant_payments</td><td>belongsTo</td><td>tenants</td><td></td></tr>
+  <tr><td>payments</td><td>belongsTo</td><td>invoices</td><td></td></tr>
+  <tr><td>payments</td><td>belongsTo</td><td>tenant_payments</td><td>NULLABLE — links payment to specific tenant's share.</td></tr>
+</table>
+
+<!-- SECTION 5 -->
+<h2 id="business-rules">5. Key Business Rules Enforced by the Schema</h2>
+
+<h3>5.1 Rent Splitting</h3>
+<p>Rent is <em>not</em> stored per tenant. Instead:</p>
+<ul>
+  <li><code>rooms.monthly_rate</code> = full room cost.</li>
+  <li><code>invoices.tenant_count</code> = snapshot of tenants at generation time.</li>
+  <li><code>tenant_payments.share_amount</code> = <code>total_amount ÷ tenant_count</code> (calculated at invoice generation).</li>
+</ul>
+<p>This means if a room has 4 tenants at ₱10,000/month, each <code>tenant_payments</code> row gets <code>share_amount = ₱2,500</code>.</p>
+
+<h3>5.2 Invoice Status Derivation</h3>
+<p>The invoice status is computed from all its <code>tenant_payments</code> rows:</p>
+<table>
+  <tr><th>Tenant payment statuses</th><th>Invoice status</th></tr>
+  <tr><td>All = paid</td><td>paid</td></tr>
+  <tr><td>Some paid, rest anything</td><td>partial</td></tr>
+  <tr><td>None paid, all = overdue</td><td>overdue</td></tr>
+  <tr><td>None paid, all = late</td><td>late</td></tr>
+  <tr><td>None paid, any late/overdue mixed with pending</td><td>late</td></tr>
+  <tr><td>None paid, all = pending</td><td>pending</td></tr>
+</table>
+
+<h3>5.3 Electricity Billing</h3>
+<p>Electricity cost = <code>meter_readings.kwh_used × settings.value</code> (where key='electricity_rate' and effective_from ≤ billing month end). Past invoices are never retroactively updated when the rate changes.</p>
+
+<h3>5.4 Audit Log Immutability</h3>
+<p>The <code>audit_logs</code> table has no <code>updated_at</code> column and no UPDATE or DELETE operations in the application code. It is append-only.</p>
+
+<h3>5.5 PayMongo Webhook Matching</h3>
+<p>When PayMongo sends a payment webhook:</p>
+<ol>
+  <li>Match by <code>tenant_payments.paymongo_link_id</code> (most precise — links to specific tenant's payment).</li>
+  <li>Fall back to <code>invoices.paymongo_link_id</code>.</li>
+  <li>Fall back to invoice_number in the payment description/remarks.</li>
+</ol>
+
+<!-- SECTION 6 -->
+<h2 id="indexes">6. Indexes &amp; Constraints</h2>
+<table>
+  <tr><th>Table</th><th>Index/Constraint</th><th>Columns</th></tr>
+  <tr><td>users</td><td>UNIQUE</td><td>email</td></tr>
+  <tr><td>tenants</td><td>UNIQUE</td><td>user_id</td></tr>
+  <tr><td>rooms</td><td>UNIQUE</td><td>room_number</td></tr>
+  <tr><td>invoices</td><td>UNIQUE</td><td>invoice_number</td></tr>
+  <tr><td>meter_readings</td><td>UNIQUE</td><td>(room_id, reading_month)</td></tr>
+  <tr><td>tenant_payments</td><td>UNIQUE</td><td>(invoice_id, tenant_id)</td></tr>
+  <tr><td>settings</td><td>INDEX</td><td>(key, effective_from)</td></tr>
+  <tr><td>contracts</td><td>CASCADE DELETE on FK</td><td>room_id → rooms</td></tr>
+  <tr><td>invoices</td><td>CASCADE DELETE on FK</td><td>contract_id → contracts</td></tr>
+  <tr><td>tenant_payments</td><td>CASCADE DELETE on FK</td><td>invoice_id → invoices</td></tr>
+  <tr><td>payments</td><td>nullOnDelete on FK</td><td>tenant_payment_id → tenant_payments</td></tr>
+</table>
+
+<hr style="margin:40px 0; border:none; border-top:1px solid #e5e7eb"/>
+<p style="text-align:center; color:#9ca3af; font-size:9pt">Dorm Manager Database Design Document · Version 1.0 · September 2026</p>
+
+</body>
+</html>

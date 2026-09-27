@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Register - Dorm Manager</title>
+</head>
+<body>
+    <h1>Create an account</h1>
+    <p>For the dormitory owner and employees only. Tenant accounts are created by staff.</p>
+
+    @if ($errors->any())
+        <div style="color:red">
+            <ul>
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    <form method="POST" action="{{ route('register') }}">
+        @csrf
+
+        <p>
+            <label for="name">Name</label><br>
+            <input id="name" type="text" name="name" value="{{ old('name') }}" required autofocus>
+        </p>
+
+        <p>
+            <label for="email">Email</label><br>
+            <input id="email" type="email" name="email" value="{{ old('email') }}" required>
+        </p>
+
+        <p>
+            <label for="phone">Phone (optional)</label><br>
+            <input id="phone" type="text" name="phone" value="{{ old('phone') }}">
+        </p>
+
+        <p>
+            <label for="role">Role</label><br>
+            <select id="role" name="role" required>
+                <option value="owner" {{ old('role') === 'owner' ? 'selected' : '' }}>Owner</option>
+                <option value="employee" {{ old('role') === 'employee' ? 'selected' : '' }}>Employee</option>
+            </select>
+        </p>
+
+        <p>
+            <label for="password">Password</label><br>
+            <input id="password" type="password" name="password" required>
+        </p>
+
+        <p>
+            <label for="password_confirmation">Confirm password</label><br>
+            <input id="password_confirmation" type="password" name="password_confirmation" required>
+        </p>
+
+        <button type="submit">Register</button>
+    </form>
+
+    <p>Already have an account? <a href="{{ route('login') }}">Log in</a></p>
+</body>
+</html>

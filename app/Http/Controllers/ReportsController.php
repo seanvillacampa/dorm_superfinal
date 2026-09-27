@@ -1,0 +1,146 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Invoice;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class ReportsController extends Controller
+{
+    private function getData(string $month): array
+    {
+        $monthInvoices = Invoice::where('billing_month', $month)
+            ->where('status', '!=', 'void')->get();
+
+        $totalBilled    = $monthInvoices->sum('total_amount');
+        $totalCollected = $monthInvoices->sum('amount_paid');
+
+        // Status counts — include pending, partial as their own group
+        $rawGroups = $monthInvoices->groupBy(function ($inv) {
+            return match(true) {
+                in_array($inv->status, ['partial','partial_late','partial_overdue']) => 'partial',
+                default => $inv->status,
+            };
+        })->map->count();
+
+        $statusCounts = collect([
+            'paid'    => $rawGroups['paid']    ?? 0,
+            'partial' => $rawGroups['partial'] ?? 0,
+            'pending' => $rawGroups['pending'] ?? 0,
+            'late'    => $rawGroups['late']    ?? 0,
+            'overdue' => $rawGroups['overdue'] ?? 0,
+        ]);
+
+        // Monthly income trend (last 9 months)
+        $trend = Invoice::where('status', '!=', 'void')
+            ->where('billing_month', '>=', now()->subMonths(8)->format('Y-m'))
+            ->selectRaw("billing_month, SUM(amount_paid) as collected")
+            ->groupBy('billing_month')
+            ->orderBy('billing_month')
+            ->get()->keyBy('billing_month');
+
+        $trendLabels = [];
+        $trendValues = [];
+        for ($i = 8; $i >= 0; $i--) {
+            $m = now()->subMonths($i)->format('Y-m');
+            $trendLabels[] = now()->subMonths($i)->format('M');
+            $trendValues[] = (float) ($trend->get($m)?->collected ?? 0);
+        }
+
+        // Top arrears
+        $topArrears = Invoice::where('billing_month', $month)
+            ->where('status', '!=', 'void')
+            ->whereNotIn('status', ['paid'])
+            ->with(['contract.room', 'contract.tenants.user'])
+            ->get()
+            ->map(fn ($inv) => [
+                'name'    => $inv->contract->tenants->first()?->user->name ?? '—',
+                'room'    => $inv->contract->room->room_number ?? '—',
+                'balance' => $inv->balanceDue(),
+            ])
+            ->sortByDesc('balance')
+            ->take(5)
+            ->values();
+
+        return compact(
+            'totalBilled', 'totalCollected', 'statusCounts',
+            'trendLabels', 'trendValues', 'topArrears'
+        );
+    }
+
+    public function index(Request $request)
+    {
+        $month = $request->get('month', now()->format('Y-m'));
+        $data  = $this->getData($month);
+        return view('reports.index', array_merge(['month' => $month], $data));
+    }
+
+    public function exportCsv(Request $request)
+    {
+        $month  = $request->get('month', now()->format('Y-m'));
+        $label  = now()->parse($month)->format('F_Y');
+
+        $invoices = Invoice::with(['contract.room', 'contract.tenants.user', 'tenantPayments'])
+            ->where('billing_month', $month)
+            ->where('status', '!=', 'void')
+            ->orderBy('invoice_number')
+            ->get();
+
+        $rows   = [];
+        $rows[] = ['Invoice #','Room','Tenants','Due Date','Room Rent','Electricity','Total','Amount Paid','Balance','Status'];
+
+        foreach ($invoices as $inv) {
+            $tenants = $inv->contract->tenants->map(fn($t)=>$t->user->name)->implode(', ');
+            $rows[] = [
+                $inv->invoice_number,
+                $inv->contract->room->room_number,
+                $tenants,
+                $inv->due_date->format('Y-m-d'),
+                $inv->rent_amount,
+                $inv->electricity_amount,
+                $inv->total_amount,
+                $inv->amount_paid,
+                $inv->balanceDue(),
+                $inv->status,
+            ];
+        }
+
+        $callback = function () use ($rows) {
+            $handle = fopen('php://output', 'w');
+            foreach ($rows as $row) {
+                fputcsv($handle, $row);
+            }
+            fclose($handle);
+        };
+
+        return response()->stream($callback, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"invoices_{$label}.csv\"",
+        ]);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $month  = $request->get('month', now()->format('Y-m'));
+        $data   = $this->getData($month);
+
+        $invoices = Invoice::with(['contract.room', 'contract.tenants.user', 'tenantPayments'])
+            ->where('billing_month', $month)
+            ->where('status', '!=', 'void')
+            ->orderBy('invoice_number')
+            ->get();
+
+        $html = view('reports.pdf', array_merge(
+            ['month' => $month, 'invoices' => $invoices],
+            $data
+        ))->render();
+
+        // Return as HTML download — works without any PDF library
+        $label = now()->parse($month)->format('F_Y');
+        return response($html, 200, [
+            'Content-Type'        => 'text/html',
+            'Content-Disposition' => "attachment; filename=\"report_{$label}.html\"",
+        ]);
+    }
+}

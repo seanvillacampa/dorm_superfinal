@@ -1,0 +1,54 @@
+<?php
+
+namespace App\Http\Controllers\Auth;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\RegisterRequest;
+use App\Models\User;
+use Illuminate\Auth\Events\Registered;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+
+/**
+ * Self-registration for OWNER and EMPLOYEE accounts only.
+ *
+ * Tenants are never created here. A tenant account is created by staff when
+ * a lease is signed (a separate, not-yet-built TenantController), and the
+ * tenant activates it from an emailed link rather than filling this form.
+ */
+class RegisterController extends Controller
+{
+    public function create()
+    {
+        return view('auth.register');
+    }
+
+    public function store(RegisterRequest $request)
+    {
+        $data = $request->validated();
+
+        $user = DB::transaction(function () use ($data) {
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'phone' => $data['phone'] ?? null,
+                'password' => Hash::make($data['password']),
+                'is_active' => true,
+            ]);
+
+            // The 'owner' / 'employee' / 'tenant' role rows already exist —
+            // they are seeded by database/dormitory_schema.sql. This just
+            // attaches the pivot row in model_has_roles.
+            $user->assignRole($data['role']);
+
+            return $user;
+        });
+
+        event(new Registered($user));
+
+        Auth::login($user);
+
+        return redirect()->route('dashboard');
+    }
+}
