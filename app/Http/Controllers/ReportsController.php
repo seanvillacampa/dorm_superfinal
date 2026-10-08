@@ -71,9 +71,49 @@ class ReportsController extends Controller
 
     public function index(Request $request)
     {
+        $type = $request->get('type', 'dorm'); // 'dorm' or 'laundry'
+        
+        if ($type === 'laundry') {
+            return $this->laundryReports($request);
+        }
+        
         $month = $request->get('month', now()->format('Y-m'));
         $data  = $this->getData($month);
-        return view('reports.index', array_merge(['month' => $month], $data));
+        return view('reports.index', array_merge(['month' => $month, 'type' => $type], $data));
+    }
+    
+    private function laundryReports(Request $request)
+    {
+        $from = $request->input('from', \Illuminate\Support\Carbon::now()->startOfMonth()->toDateString());
+        $to   = $request->input('to',   \Illuminate\Support\Carbon::now()->endOfMonth()->toDateString());
+
+        $orders = \App\Models\LaundryOrder::between($from, $to);
+
+        $summary = [
+            'transactions' => (clone $orders)->count(),
+            'total_income' => (clone $orders)->paid()->sum('total_amount'),
+            'receivables'  => (clone $orders)->unpaid()->sum('total_amount'),
+            'cash'         => (clone $orders)->paid()->where('payment_method', \App\Models\LaundryOrder::METHOD_CASH)->sum('total_amount'),
+            'online'       => (clone $orders)->paid()->where('payment_method', \App\Models\LaundryOrder::METHOD_ONLINE)->sum('total_amount'),
+            'loads'        => (clone $orders)->sum('total_loads'),
+            'liquid_ml'    => (clone $orders)->sum('total_liquid_ml'),
+        ];
+
+        $byCustomerType = (clone $orders)
+            ->select('customer_type', DB::raw('COUNT(*) as transactions'), DB::raw('SUM(total_amount) as amount'))
+            ->groupBy('customer_type')
+            ->get();
+
+        $daily = (clone $orders)
+            ->select('date_received', DB::raw('SUM(total_amount) as amount'))
+            ->groupBy('date_received')
+            ->orderBy('date_received')
+            ->get();
+
+        $unpaid = (clone $orders)->unpaid()->with('customer')->get();
+
+        return view('reports.index', compact('from', 'to', 'summary', 'byCustomerType', 'daily', 'unpaid'))
+            ->with('type', 'laundry');
     }
 
     public function exportCsv(Request $request)

@@ -1,4 +1,4 @@
-<x-layouts.app title="Rates & Settings — Dorm Manager">
+<x-layouts.app title="Rates & Settings — Quest Building">
 
     <x-page-header title="Rates &amp; Settings" badge="Owner only"
         subtitle="Electricity rate, billing rules and PayMongo">
@@ -51,36 +51,42 @@
 
         {{-- Billing rules --}}
         <div class="bg-white rounded-xl border border-gray-200 shadow-xs p-5">
-            <h2 class="text-sm font-semibold text-gray-900 mb-4">Billing rules</h2>
+            <h2 class="text-sm font-semibold text-gray-900 mb-1">Billing rules</h2>
+            <p class="text-xs text-gray-400 mb-4">Controls when invoices are generated and when they become late or overdue.</p>
             <form id="billing-form" method="POST" action="{{ route('settings.billing') }}" class="space-y-4">
                 @csrf
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Invoice generated on day</label>
-                        <input type="number" name="invoice_generated_on"
-                               value="{{ $billingRules['invoice_generated_on'] }}" min="1" max="28"
-                               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Default due day (1-28)</label>
-                        <input type="number" name="default_due_day"
-                               value="{{ $billingRules['default_due_day'] }}" min="1" max="28"
-                               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Late starts after (days)</label>
-                        <input type="number" name="late_after_days"
-                               value="{{ $billingRules['late_after_days'] }}" min="0"
-                               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Overdue after grace (days)</label>
-                        <input type="number" name="overdue_grace_days"
-                               value="{{ $billingRules['overdue_grace_days'] }}" min="1"
-                               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">
+                        Days before due date to generate invoice
+                        <span class="text-gray-400 font-normal">(advance notice)</span>
+                    </label>
+                    <input type="number" name="invoice_advance_days"
+                           value="{{ $billingRules['invoice_advance_days'] }}" min="1" max="14"
+                           class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <p class="text-[11px] text-gray-400 mt-1">
+                        e.g. 3 = invoice created 3 days before due date. Tenants are emailed the moment it's created.
+                    </p>
                 </div>
-                <p class="text-xs text-gray-400">A daily job flips pending → late → overdue based on these rules. Payments always turn an invoice green, even after it is overdue.</p>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Default due day (1–28)</label>
+                    <input type="number" name="default_due_day"
+                           value="{{ $billingRules['default_due_day'] }}" min="1" max="28"
+                           class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <p class="text-[11px] text-gray-400 mt-1">
+                        Day of the month rent is due. Can be overridden per contract.
+                    </p>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">
+                        Grace period (days after due date)
+                    </label>
+                    <input type="number" name="overdue_grace_days"
+                           value="{{ $billingRules['overdue_grace_days'] }}" min="1"
+                           class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <p class="text-[11px] text-gray-400 mt-1">
+                        Invoice is <strong>Late</strong> during this period. After it ends, invoice becomes <strong>Overdue</strong> and the owner is alerted.
+                    </p>
+                </div>
             </form>
         </div>
     </div>

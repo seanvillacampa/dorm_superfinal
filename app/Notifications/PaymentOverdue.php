@@ -34,9 +34,9 @@ class PaymentOverdue extends Notification
             ->greeting("Hello, {(\$notifiable->name ?? 'there')}!")
             ->line("Your payment for **Room {$room}** ({$month}) is now **OVERDUE**.")
             ->line("**Amount owed: ₱{$amount}**")
-            ->line('The grace period has ended. Please contact the dorm office immediately or settle online.')
+            ->line('The grace period has ended. Please contact the management office immediately or settle online.')
             ->action('Pay Now with PayMongo', url(route('tenant.bill')))
             ->line('Failure to pay may result in penalties or contract review.')
-            ->salutation('— Dorm Manager');
+            ->salutation('— Quest Building');
     }
 }

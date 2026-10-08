@@ -1,62 +1,66 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-gray-50">
+<html lang="en" class="h-full bg-[#f5f7f6]">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <title>{!! $title ?? 'Dorm Manager' !!}</title>
+    <title>{!! $title ?? 'Quest Building' !!}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-full">
-
-    {{-- Top nav --}}
-    <header class="bg-white border-b border-gray-200">
-        <div class="max-w-3xl mx-auto px-4 flex items-center h-12 gap-6">
-            <div class="flex items-center gap-2 mr-4">
-                <div class="w-6 h-6 bg-blue-600 rounded-md flex items-center justify-center text-white font-bold text-xs">D</div>
-                <span class="font-semibold text-sm text-gray-900">Dorm Manager</span>
+<body class="min-h-full bg-[#f5f7f6] text-slate-900">
+    <header class="border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div class="mx-auto flex h-16 max-w-5xl items-center gap-5 px-4">
+            <div class="flex items-center gap-3">
+                <div class="flex size-9 items-center justify-center rounded-xl bg-[#145d4b] text-sm font-bold text-white">Q</div>
+                <div>
+                    <div class="text-sm font-extrabold tracking-tight text-slate-900">Quest Building</div>
+                    <div class="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-700/75">Tenant portal</div>
+                </div>
             </div>
 
             @php
                 $links = [
                     'tenant.bill'     => 'My Bill',
                     'tenant.payments' => 'Payment History',
+                    'tenant.messages' => 'Messages',
                     'tenant.deposit'  => 'Deposit',
                     'tenant.contract' => 'Contract',
                 ];
             @endphp
-            @foreach($links as $route => $label)
-                <a href="{{ route($route) }}"
-                   class="text-sm font-medium pb-0.5 {{ request()->routeIs($route)
-                        ? 'text-blue-600 border-b-2 border-blue-600'
-                        : 'text-gray-500 hover:text-gray-800' }}">
-                    {{ $label }}
-                </a>
-            @endforeach
+            <nav class="hidden items-center gap-1 md:flex">
+                @foreach($links as $route => $label)
+                    <a href="{{ route($route) }}"
+                       class="relative rounded-lg px-3 py-2 text-sm font-semibold transition-colors {{ request()->routeIs($route, $route . '.*')
+                            ? 'bg-emerald-50 text-[#145d4b]'
+                            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' }}">
+                        {{ $label }}
+                        @if($route === 'tenant.messages' && isset($unreadMessagesCount) && $unreadMessagesCount > 0)
+                            <span class="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white">
+                                {{ $unreadMessagesCount > 9 ? '9+' : $unreadMessagesCount }}
+                            </span>
+                        @endif
+                    </a>
+                @endforeach
+            </nav>
 
             <div class="ml-auto flex items-center gap-3">
-                <span class="flex items-center gap-1.5 text-xs text-green-600 font-medium">
-                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block"></span>
-                    Live
-                </span>
                 @php $u = auth()->user(); @endphp
-                <div class="flex items-center gap-1.5">
-                    <div class="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-semibold flex items-center justify-center">
+                <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5">
+                    <div class="flex size-7 items-center justify-center rounded-full bg-[#dff6ee] text-[10px] font-bold text-[#145d4b]">
                         {{ strtoupper(substr($u->name,0,1)) }}
                     </div>
-                    <span class="text-sm font-medium text-gray-800">{{ $u->name }}</span>
+                    <span class="text-sm font-semibold text-slate-700">{{ $u->name }}</span>
                 </div>
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
-                    <button type="submit" class="text-xs text-gray-400 hover:text-red-500">Sign out</button>
+                    <button type="submit" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 hover:text-red-500">Sign out</button>
                 </form>
             </div>
         </div>
     </header>
 
-    <main class="max-w-3xl mx-auto px-4 py-8">
+    <main class="mx-auto max-w-5xl px-4 py-8">
         {{ $slot }}
     </main>
-
 </body>
 </html>

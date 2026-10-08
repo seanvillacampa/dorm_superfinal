@@ -32,13 +32,13 @@ class TenantWelcome extends Notification
         ], false));
 
         return (new MailMessage)
-            ->subject('Welcome to Dorm Manager — Set Your Password')
-            ->greeting('Hello, ' . (\$notifiable->name ?? 'there') . '!')
-            ->line('Your dormitory account has been created by the dorm office.')
+            ->subject('Welcome to Quest Building — Set Your Password')
+            ->greeting('Hello, ' . ($notifiable->name ?? 'there') . '!')
+            ->line('Your account has been created by the management office.')
             ->line('Click the button below to set your password and activate your account.')
             ->action('Set My Password', $url)
             ->line('This link expires in ' . config('auth.passwords.users.expire', 60) . ' minutes.')
             ->line('If you did not expect this email, you can safely ignore it.')
-            ->salutation('— Dorm Manager');
+            ->salutation('— Quest Building');
     }
 }

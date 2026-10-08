@@ -1,4 +1,4 @@
-<x-layouts.app title="{{ $tenant->user->name }} — Dorm Manager">
+<x-layouts.app title="{{ $tenant->user->name }} — Quest Building">
 
     <x-page-header title="{{ $tenant->user->name }}" badge="Owner + Employee"
         subtitle="{{ $tenant->user->email }}" />
@@ -26,7 +26,7 @@
                     <div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                         <div>
                             <p class="text-sm font-medium text-gray-900">Room {{ $contract->room->room_number }}</p>
-                            <p class="text-xs text-gray-400">{{ $contract->start_date->format('M d, Y') }} – {{ $contract->end_date->format('M d, Y') }}</p>
+                            <p class="text-xs text-gray-400">{{ $contract->start_date->format('M d, Y') }} – {{ $contract->end_date ? $contract->end_date->format('M d, Y') : 'Open-ended' }}</p>
                         </div>
                         <div class="flex items-center gap-2">
                             <x-status-badge :status="$contract->status" />

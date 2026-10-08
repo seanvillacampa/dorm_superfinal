@@ -45,9 +45,8 @@ class SettingsController extends Controller
     public function storeBilling(Request $request)
     {
         $data = $request->validate([
-            'invoice_generated_on' => 'required|integer|min:1|max:28',
+            'invoice_advance_days' => 'required|integer|min:1|max:14',
             'default_due_day'      => 'required|integer|min:1|max:28',
-            'late_after_days'      => 'required|integer|min:0',
             'overdue_grace_days'   => 'required|integer|min:1',
         ]);
 

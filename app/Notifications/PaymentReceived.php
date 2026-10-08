@@ -41,6 +41,6 @@ class PaymentReceived extends Notification
                 ? "**Remaining balance: ₱{$balance}** — please settle the rest before the grace period ends."
                 : "**Your share is fully paid. Thank you!**")
             ->action('View Your Bill', url(route('tenant.bill')))
-            ->salutation('— Dorm Manager');
+            ->salutation('— Quest Building');
     }
 }

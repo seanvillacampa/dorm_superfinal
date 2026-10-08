@@ -14,6 +14,54 @@ use Illuminate\Support\Collection;
 
 class InvoiceController extends Controller
 {
+    // ── Latest created invoices ──────────────────────────────────────────
+
+    public function latest(Request $request)
+    {
+        $search = $request->get('search', '');
+        $status = $request->get('status', '');
+        $month  = $request->get('month', '');
+
+        $query = Invoice::with(['contract.room', 'contract.tenants.user'])
+            ->whereNotIn('status', ['void'])
+            ->orderByDesc('created_at'); // always newest first
+
+        if ($search) {
+            $query->where(fn ($q) =>
+                $q->where('invoice_number', 'like', "%{$search}%")
+                  ->orWhereHas('contract.room', fn ($r) =>
+                      $r->where('room_number', 'like', "%{$search}%"))
+            );
+        }
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        if ($month) {
+            $query->where('billing_month', $month);
+        }
+
+        $invoices = $query->paginate(20)->withQueryString();
+
+        // Counts for filter badges
+        $statusCounts = Invoice::whereNotIn('status', ['void'])
+            ->selectRaw("status, COUNT(*) as cnt")
+            ->groupBy('status')
+            ->pluck('cnt', 'status');
+
+        // Available billing months for dropdown
+        $billingMonths = Invoice::whereNotIn('status', ['void'])
+            ->distinct()
+            ->orderByDesc('billing_month')
+            ->pluck('billing_month');
+
+        return view('invoices.latest', compact(
+            'invoices', 'search', 'status', 'month',
+            'statusCounts', 'billingMonths'
+        ));
+    }
+
     // ── Room → Invoice redirect ───────────────────────────────────────────
 
     /**
@@ -48,8 +96,13 @@ class InvoiceController extends Controller
 
     private function monthCoverage(): Collection
     {
-        $totalRooms = Contract::where('status', 'active')->count();
-
+        // Define room count milestones (when new rooms were added)
+        // Format: 'YYYY-MM' => total_rooms_from_that_month_onwards
+        $roomMilestones = [
+            '2026-10' => 29, // October 2026: 29 rooms
+            '2026-09' => 28, // Before October: 28 rooms
+        ];
+        
         $counts = Invoice::select('billing_month', DB::raw('COUNT(*) as cnt'))
             ->where('status', '!=', 'void')
             ->groupBy('billing_month')
@@ -57,8 +110,18 @@ class InvoiceController extends Controller
 
         $months = collect();
         for ($i = 0; $i <= 12; $i++) {
-            $m      = now()->subMonths($i)->format('Y-m');
-            $cnt    = (int) ($counts[$m] ?? 0);
+            $m = now()->subMonths($i)->format('Y-m');
+            $cnt = (int) ($counts[$m] ?? 0);
+            
+            // Determine the expected room count for this month
+            $totalRooms = 28; // Default for oldest months
+            foreach ($roomMilestones as $milestoneMonth => $roomCount) {
+                if ($m >= $milestoneMonth) {
+                    $totalRooms = $roomCount;
+                    break;
+                }
+            }
+            
             $status = match(true) {
                 $totalRooms > 0 && $cnt >= $totalRooms => 'all',
                 $cnt > 0                               => 'partial',
@@ -88,13 +151,9 @@ class InvoiceController extends Controller
             ->where('status', '!=', 'void')
             ->orderBy('invoice_number');
 
-        // Status filter — 'partial' catches all partial variants
+        // Status filter
         if ($status && $status !== 'all') {
-            if ($status === 'partial') {
-                $query->whereIn('status', ['partial', 'partial_late', 'partial_overdue']);
-            } else {
-                $query->where('status', $status);
-            }
+            $query->where('status', $status);
         }
 
         // Search by room number or invoice number
@@ -114,7 +173,7 @@ class InvoiceController extends Controller
             ->selectRaw("
                 COUNT(*) as total,
                 SUM(status='paid') as paid,
-                SUM(status IN ('partial','partial_late','partial_overdue')) as partial,
+                SUM(status='partial') as partial,
                 SUM(status='late') as late,
                 SUM(status='overdue') as overdue,
                 SUM(status='pending') as pending
@@ -123,7 +182,7 @@ class InvoiceController extends Controller
         // All invoices (incl. void) for manage tab
         $allInvoices = Invoice::with(['contract.room', 'contract.tenants.user', 'tenantPayments.tenant.user'])
             ->where('billing_month', $month)
-            ->orderByRaw("FIELD(status,'pending','late','overdue','partial','partial_late','partial_overdue','paid','void')")
+            ->orderByRaw("FIELD(status,'pending','late','overdue','partial','paid','void')")
             ->orderBy('invoice_number')
             ->paginate(28)
             ->withQueryString();
@@ -145,6 +204,7 @@ class InvoiceController extends Controller
             'contract.tenants.user',
             'tenantPayments.tenant.user',
             'payments.recordedByUser',
+            'payments.tenantPayment.tenant.user',
             'createdBy',
         ]);
         $canVoid = Auth::user()->hasRole('owner') && $invoice->status !== 'void';
@@ -171,7 +231,7 @@ class InvoiceController extends Controller
                     continue;
                 }
 
-                $tenantCount  = $contract->tenants->count();
+                $tenantCount = $contract->tenants->count();
                 if ($tenantCount === 0) continue;
 
                 $roomRate    = $contract->room->monthly_rate;
@@ -182,7 +242,33 @@ class InvoiceController extends Controller
                     $electricity = round($reading->kwh_used * $rate, 2);
                 }
 
-                $total   = $roomRate + $electricity;
+                // ── Carry-over from previous invoice ────────────────────
+                $carryOver   = 0.0; // unpaid balance from prev invoice
+                $creditBal   = 0.0; // overpayment from prev invoice
+
+                $prevInvoice = Invoice::where('contract_id', $contract->id)
+                    ->where('billing_month', '<', $month)
+                    ->whereNotIn('status', ['void'])
+                    ->orderByDesc('billing_month')
+                    ->first();
+
+                if ($prevInvoice) {
+                    $prevBalance = $prevInvoice->balanceDue();
+                    $prevCredit  = max(0, $prevInvoice->amount_paid - $prevInvoice->effectiveTotal());
+
+                    if ($prevBalance > 0) {
+                        // Previous invoice has unpaid balance — add it to this month
+                        $carryOver = round($prevBalance, 2);
+                    } elseif ($prevCredit > 0) {
+                        // Previous invoice was overpaid — credit this month
+                        $creditBal = round($prevCredit, 2);
+                    }
+                }
+
+                // Effective total: base + carry-over - credit
+                $baseTotal   = $roomRate + $electricity;
+                $effectTotal = max(0, round($baseTotal + $carryOver - $creditBal, 2));
+
                 $dueDate = \Carbon\Carbon::createFromFormat('Y-m', $month)
                     ->day($contract->due_day);
 
@@ -194,16 +280,16 @@ class InvoiceController extends Controller
                     'due_date'           => $dueDate,
                     'rent_amount'        => $roomRate,
                     'electricity_amount' => $electricity,
-                    'total_amount'       => $total,
+                    'carry_over_balance' => $carryOver,
+                    'credit_balance'     => $creditBal,
+                    'total_amount'       => $effectTotal,
                     'amount_paid'        => 0,
                     'status'             => 'pending',
                     'created_by'         => Auth::id(),
                 ]);
 
-                // Create one TenantPayment row per tenant
-                $shareRent  = round($roomRate / $tenantCount, 2);
-                $shareElec  = round($electricity / $tenantCount, 2);
-                $shareTotal = $shareRent + $shareElec;
+                // Per-tenant share based on effective total
+                $shareTotal = round($effectTotal / $tenantCount, 2);
 
                 foreach ($contract->tenants as $tenant) {
                     TenantPayment::create([

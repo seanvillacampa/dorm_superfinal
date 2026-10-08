@@ -3,10 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Invoice;
-use App\Models\Setting;
-use App\Models\TenantPayment;
 use App\Models\User;
-use App\Notifications\InvoiceDueReminder;
 use App\Notifications\PaymentMissed;
 use App\Notifications\PaymentOverdue;
 use App\Notifications\OwnerPaymentAlert;
@@ -14,22 +11,22 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Runs daily (via scheduler) to:
- *  1. Flip pending → late → overdue based on billing rules
- *  2. Send due-date reminder emails on the due date
- *  3. Send missed-payment (late) emails
- *  4. Send overdue emails to tenants + one-time alert to owner
+ * Runs daily at 00:05 AFTER invoices:generate-scheduled.
+ *
+ * Calls recomputeStatus() on every unpaid invoice. That method
+ * derives the correct status (pending/late/overdue) from the due
+ * date and grace period settings, then sends notification emails
+ * when status transitions occur.
  */
 class ProcessInvoiceStatuses extends Command
 {
     protected $signature   = 'invoices:process-statuses';
-    protected $description = 'Flip invoice statuses and send email notifications';
+    protected $description = 'Recompute invoice statuses (pending/late/overdue) and send reminder emails';
 
     public function handle(): void
     {
-        $rules      = Setting::billingRules();
-        $graceDays  = (int) ($rules['overdue_grace_days'] ?? 3);
-        $today      = now()->toDateString();
+        $owner   = User::role('owner')->first();
+        $updated = 0;
 
         $invoices = Invoice::with([
                 'contract.room',
@@ -39,55 +36,60 @@ class ProcessInvoiceStatuses extends Command
             ->whereNotIn('status', ['paid', 'void'])
             ->get();
 
-        $owner = User::role('owner')->first();
-
         foreach ($invoices as $invoice) {
-            $dueDate  = $invoice->due_date;
-            $daysLate = now()->diffInDays($dueDate, false); // negative = not yet due
+            $oldStatus = $invoice->status;
 
-            foreach ($invoice->tenantPayments as $tp) {
-                if ($tp->status === 'paid') continue;
+            // Recompute — this updates both the invoice and individual tenant payment rows
+            $invoice->load('tenantPayments');
+            $invoice->recomputeStatus();
+            $invoice->refresh();
 
-                $oldStatus = $tp->status;
+            $newStatus = $invoice->status;
 
-                // ── Due date: send reminder ──────────────────────────
-                if ($daysLate === 0 && $oldStatus === 'pending') {
-                    $this->notify($tp->tenant->user, new InvoiceDueReminder($invoice, $tp), 'Due reminder');
+            // Send emails on status transitions
+            if ($oldStatus !== $newStatus) {
+                $updated++;
+
+                // Invoice just became late — notify all unpaid tenants
+                if ($newStatus === 'late') {
+                    foreach ($invoice->tenantPayments->where('status', 'late') as $tp) {
+                        $this->sendNotification(
+                            $tp->tenant->user,
+                            new PaymentMissed($invoice, $tp),
+                            'PaymentMissed'
+                        );
+                    }
                 }
 
-                // ── Past due but within grace: flip to late ──────────
-                if ($daysLate > 0 && $daysLate <= $graceDays && $oldStatus === 'pending') {
-                    $tp->update(['status' => 'late']);
-                    $this->notify($tp->tenant->user, new PaymentMissed($invoice, $tp), 'Payment missed (late)');
-                }
-
-                // ── Grace period ended: flip to overdue ──────────────
-                if ($daysLate > $graceDays && in_array($oldStatus, ['pending', 'late'])) {
-                    $tp->update(['status' => 'overdue']);
-                    $this->notify($tp->tenant->user, new PaymentOverdue($invoice, $tp), 'Payment overdue (tenant)');
-
-                    // One-time owner alert only when flipping from late → overdue
-                    if ($oldStatus === 'late' && $owner) {
-                        $this->notify($owner, new OwnerPaymentAlert($invoice), 'Overdue owner alert');
+                // Invoice just became overdue — notify tenants + owner (once)
+                if ($newStatus === 'overdue') {
+                    foreach ($invoice->tenantPayments->where('status', 'overdue') as $tp) {
+                        $this->sendNotification(
+                            $tp->tenant->user,
+                            new PaymentOverdue($invoice, $tp),
+                            'PaymentOverdue'
+                        );
+                    }
+                    if ($owner) {
+                        $this->sendNotification($owner, new OwnerPaymentAlert($invoice), 'OwnerPaymentAlert');
                     }
                 }
             }
-
-            // Recompute invoice-level status after updating tenant payments
-            $invoice->load('tenantPayments');
-            $invoice->recomputeStatus();
         }
 
-        $this->info('Invoice statuses processed for ' . $today);
+        $this->info("Status processing complete — {$updated} invoice(s) transitioned.");
     }
 
-    private function notify($notifiable, $notification, string $label): void
+    private function sendNotification($notifiable, $notification, string $label): void
     {
         try {
             $notifiable->notify($notification);
             Log::info("Notification sent: {$label}", ['to' => $notifiable->email ?? 'unknown']);
         } catch (\Exception $e) {
-            Log::warning("Notification failed: {$label}", ['error' => $e->getMessage()]);
+            Log::warning("Notification failed: {$label}", [
+                'to'    => $notifiable->email ?? 'unknown',
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }

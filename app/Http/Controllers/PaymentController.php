@@ -23,19 +23,10 @@ class PaymentController extends Controller
             ])
             ->orderByDesc('received_at')
             ->orderByDesc('created_at')
-            ->paginate(10)
+            ->paginate(15)
             ->withQueryString();
 
-        // Open invoices with their unpaid tenant payment rows
-        $openInvoices = Invoice::whereIn('status', ['pending','late','overdue','partial'])
-            ->with([
-                'contract.room',
-                'tenantPayments.tenant.user',
-            ])
-            ->orderBy('invoice_number')
-            ->get();
-
-        return view('payments.index', compact('payments', 'openInvoices'));
+        return view('payments.index', compact('payments'));
     }
 
     public function store(Request $request)
@@ -79,6 +70,43 @@ class PaymentController extends Controller
                     'method'      => $data['method'],
                     'paid_at'     => $tpStatus === 'paid' ? now() : $tenantPay->paid_at,
                 ]);
+                
+                // ── Cascade payment backwards if tenant fully paid their share
+                // and this invoice had carry_over_balance
+                if ($tpStatus === 'paid' && ($invoice->carry_over_balance ?? 0) > 0) {
+                    // Get all older unpaid invoices for this contract
+                    $olderInvoices = Invoice::where('contract_id', $invoice->contract_id)
+                        ->where('billing_month', '<', $invoice->billing_month)
+                        ->whereNotIn('status', ['paid', 'void'])
+                        ->orderBy('billing_month')
+                        ->get();
+                    
+                    foreach ($olderInvoices as $oldInv) {
+                        // Find this tenant's payment record for the old invoice
+                        $oldTenantPay = TenantPayment::where('invoice_id', $oldInv->id)
+                            ->where('tenant_id', $tenantPay->tenant_id)
+                            ->whereIn('status', ['pending', 'partial', 'late', 'partial_late', 'overdue', 'partial_overdue'])
+                            ->first();
+                        
+                        if ($oldTenantPay) {
+                            $oldTenantPay->update([
+                                'amount_paid' => $oldTenantPay->share_amount,
+                                'status'      => 'paid',
+                                'method'      => $data['method'],
+                                'paid_at'     => now(),
+                            ]);
+                            
+                            // Recompute the old invoice status
+                            $oldInv->refresh();
+                            $oldInv->recomputeStatus();
+                            
+                            Log::info('Manual payment: Cascaded to older invoice', [
+                                'old_invoice' => $oldInv->invoice_number,
+                                'tenant_id'   => $tenantPay->tenant_id,
+                            ]);
+                        }
+                    }
+                }
 
                 // Send payment received notification
                 try {

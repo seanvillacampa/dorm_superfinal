@@ -6,19 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * One invoice per room per billing month.
- * rent_amount  = Room.monthly_rate (full room rent)
- * tenant_count = number of active tenants sharing the room
- * rentPerTenant() = rent_amount / tenant_count
  *
- * status is derived from tenantPayments:
- *   paid          — all tenant payments paid
- *   partial       — some paid, none late/overdue
- *   partial_late  — some paid, at least one late
- *   partial_overdue — some paid, at least one overdue
- *   late          — all unpaid and late
- *   overdue       — all unpaid and overdue
- *   pending       — no payments yet, not past due
- *   void          — cancelled
+ * Status is derived from tenantPayments:
+ *   paid     — ALL tenants paid
+ *   partial  — SOME tenants paid, others haven't (regardless of their status)
+ *   late     — NO one paid, invoice is within the grace period
+ *   overdue  — NO one paid, grace period has ended
+ *   pending  — NO one paid, due date not yet reached (invoice just created)
+ *   void     — cancelled
  */
 class Invoice extends Model
 {
@@ -30,6 +25,8 @@ class Invoice extends Model
         'due_date',
         'rent_amount',
         'electricity_amount',
+        'carry_over_balance',
+        'credit_balance',
         'total_amount',
         'amount_paid',
         'status',
@@ -96,35 +93,73 @@ class Invoice extends Model
     }
 
     /**
+     * Effective total due for the room after carry-over and credit.
+     *   effective_total = (rent + electricity + carry_over_balance) - credit_balance
+     */
+    public function effectiveTotal(): float
+    {
+        return max(0, $this->rent_amount + $this->electricity_amount
+            + ($this->carry_over_balance ?? 0)
+            - ($this->credit_balance ?? 0));
+    }
+
+    /**
+     * Effective share per tenant = effectiveTotal ÷ tenant_count.
+     */
+    public function effectiveSharePerTenant(): float
+    {
+        return round($this->effectiveTotal() / max(1, $this->tenant_count), 2);
+    }
+
+    /**
      * Recompute the invoice-level status from its tenant payment rows.
      *
-     * Status values:
-     *   paid     — all tenants paid
-     *   partial  — some paid, rest pending/late/overdue
-     *   late     — no one paid, all unpaid are late
-     *   overdue  — no one paid, all unpaid are overdue
-     *   pending  — no payments yet, not past due
-     *   void     — cancelled
+     * Rules (in order of priority):
+     *   paid    — every tenant paid
+     *   partial — at least one paid, at least one not paid
+     *   overdue — nobody paid AND at least one tenant payment is "overdue"
+     *   pending — nobody paid AND all tenant payments are "pending"
+     *
+     * This method first recomputes each TenantPayment status individually,
+     * then aggregates them to determine the invoice-level status.
+     * 
+     * If invoice becomes fully paid and has carry_over_balance, it will
+     * automatically mark all older unpaid invoices as paid.
      */
     public function recomputeStatus(): void
     {
         $tp = $this->tenantPayments;
         if ($tp->isEmpty()) return;
 
-        $total   = $tp->count();
-        $paid    = $tp->where('status', 'paid')->count();
-        $late    = $tp->whereIn('status', ['late'])->count();
-        $overdue = $tp->whereIn('status', ['overdue'])->count();
-        $unpaid  = $total - $paid;
+        // First, recompute each tenant payment's individual status
+        // This handles the cascade logic at the tenant level
+        foreach ($tp as $tenantPay) {
+            $tenantPay->recomputeStatus();
+        }
 
-        $status = match(true) {
-            $paid === $total                                  => 'paid',
-            $paid > 0                                        => 'partial',
-            $overdue === $unpaid                             => 'overdue',
-            $late === $unpaid                                => 'late',
-            ($late + $overdue) > 0 && $paid === 0           => 'late',   // mixed pending+late+overdue, none paid
-            default                                          => 'pending', // all genuinely pending
-        };
+        // Refresh to get updated statuses
+        $tp = $this->tenantPayments()->get();
+
+        $total  = $tp->count();
+        $paid   = $tp->where('status', 'paid')->count();
+
+        // Determine invoice-level status based on tenant payment statuses
+        if ($paid === $total) {
+            $status = 'paid';
+            
+            // ── CASCADE PAYMENT: If this invoice included carry_over_balance
+            // and is now fully paid, mark all older unpaid invoices as paid
+            if (($this->carry_over_balance ?? 0) > 0) {
+                $this->cascadePaymentToOlderInvoices();
+            }
+        } elseif ($paid > 0) {
+            $status = 'partial';
+        } else {
+            // Nobody paid — aggregate from tenant payment statuses
+            $hasOverdue = $tp->contains('status', 'overdue');
+            
+            $status = $hasOverdue ? 'overdue' : 'pending';
+        }
 
         $amountPaid = $tp->sum('amount_paid');
         $paidAt     = $paid === $total ? ($tp->max('paid_at') ?? now()) : null;
@@ -133,6 +168,86 @@ class Invoice extends Model
             'status'      => $status,
             'amount_paid' => $amountPaid,
             'paid_at'     => $paidAt,
+        ]);
+    }
+
+    /**
+     * Cascade payment to all older unpaid invoices.
+     * 
+     * This is called when an invoice with carry_over_balance is fully paid,
+     * meaning tenants have paid for their current month PLUS all past unpaid amounts.
+     * 
+     * For each tenant who paid their share in this invoice, mark all their
+     * older unpaid invoices as paid.
+     */
+    private function cascadePaymentToOlderInvoices(): void
+    {
+        $tenantsPaid = $this->tenantPayments->where('status', 'paid');
+        
+        foreach ($tenantsPaid as $tenantPay) {
+            // Find all older unpaid invoices for this tenant
+            $olderUnpaidInvoices = TenantPayment::where('tenant_id', $tenantPay->tenant_id)
+                ->whereHas('invoice', function($q) {
+                    $q->where('contract_id', $this->contract_id)
+                      ->where('billing_month', '<', $this->billing_month);
+                })
+                ->where('status', '!=', 'paid')
+                ->with('invoice')
+                ->orderBy('invoice_id')
+                ->get();
+            
+            if ($olderUnpaidInvoices->isEmpty()) continue;
+            
+            foreach ($olderUnpaidInvoices as $oldTenantPay) {
+                // Mark as paid
+                $oldTenantPay->update([
+                    'status' => 'paid',
+                    'amount_paid' => $oldTenantPay->share_amount,
+                    'paid_at' => now(),
+                ]);
+                
+                \Log::info('Cascaded payment to older invoice', [
+                    'tenant_id' => $tenantPay->tenant_id,
+                    'old_invoice' => $oldTenantPay->invoice->invoice_number,
+                    'billing_month' => $oldTenantPay->invoice->billing_month,
+                    'triggered_by' => $this->invoice_number,
+                ]);
+                
+                // Recompute the old invoice's status
+                $oldTenantPay->invoice->refresh();
+                $oldTenantPay->invoice->recomputeStatusWithoutCascade();
+            }
+        }
+    }
+
+    /**
+     * Recompute status without triggering cascade logic.
+     * Used when updating old invoices to avoid infinite loops.
+     */
+    private function recomputeStatusWithoutCascade(): void
+    {
+        $tp = $this->tenantPayments()->get();
+        if ($tp->isEmpty()) return;
+
+        $total = $tp->count();
+        $paid = $tp->where('status', 'paid')->count();
+
+        if ($paid === $total) {
+            $status = 'paid';
+        } elseif ($paid > 0) {
+            $status = 'partial';
+        } else {
+            $hasOverdue = $tp->contains('status', 'overdue');
+            $status = $hasOverdue ? 'overdue' : 'pending';
+        }
+
+        $amountPaid = $tp->sum('amount_paid');
+        $paidAt = $paid === $total ? ($tp->max('paid_at') ?? now()) : null;
+
+        $this->update([
+            'status' => $status,
+            'amount_paid' => $amountPaid,
+            'paid_at' => $paidAt,
         ]);
     }
 }

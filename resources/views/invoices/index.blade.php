@@ -1,18 +1,23 @@
-<x-layouts.app title="Invoices — Dorm Manager">
+<x-layouts.app title="Billing Statements — Quest Building">
 
-    <x-page-header title="Invoices" badge="Owner + Employee"
+    <x-page-header title="Billing Statements" badge="Owner + Employee"
         subtitle="{{ now()->parse($month)->format('F Y') }} billing · rent + electricity">
         <x-slot:actions>
             <x-month-picker :coverage="$monthCoverage" :selected="$month" />
-            <form method="POST" action="{{ route('invoices.generate') }}" class="inline">
-                @csrf
-                <input type="hidden" name="month" value="{{ $month }}" />
-                <button type="submit"
-                        onclick="return confirm('Generate invoices for {{ now()->parse($month)->format('F Y') }}?')"
-                        class="px-3.5 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">
-                    Generate invoices
-                </button>
-            </form>
+            <a href="{{ route('invoices.latest') }}"
+               class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors shadow-xs">
+                <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Latest statements
+            </a>
+            <a href="{{ route('payments.index') }}"
+               class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors shadow-xs">
+                <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <rect x="2" y="5" width="20" height="15" rx="2"/><path d="M2 10h20M6 16h4"/>
+                </svg>
+                Latest payments made
+            </a>
         </x-slot:actions>
     </x-page-header>
 
@@ -33,7 +38,7 @@
                 <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
             </svg>
             <input type="text" name="search" value="{{ $search }}"
-                   placeholder="Room number or invoice #…"
+                   placeholder="Room number or statement #…"
                    class="bg-transparent text-xs text-gray-600 placeholder-gray-400 outline-none w-full" />
         </div>
 
@@ -48,8 +53,7 @@
                         'pending' => 'Pending (' . ($rawCounts->pending ?? 0) . ')',
                         'paid'    => 'Paid (' . ($rawCounts->paid ?? 0) . ')',
                         'partial' => 'Partially paid (' . ($rawCounts->partial ?? 0) . ')',
-                        'late'    => 'All late (' . ($rawCounts->late ?? 0) . ')',
-                        'overdue' => 'All overdue (' . ($rawCounts->overdue ?? 0) . ')',
+                        'overdue' => 'Overdue (' . ($rawCounts->overdue ?? 0) . ')',
                     ];
                 @endphp
                 @foreach($statusOptions as $val => $label)
@@ -97,14 +101,6 @@
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M15 19l-7-7 7-7"/></svg>
                 Back to invoices
             </a>
-            <form method="POST" action="{{ route('invoices.cancel') }}"
-                  onsubmit="return confirm('Void all unpaid invoices for {{ now()->parse($month)->format('F Y') }}?')">
-                @csrf
-                <input type="hidden" name="month" value="{{ $month }}" />
-                <button type="submit" class="px-3.5 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700">
-                    Cancel all unpaid
-                </button>
-            </form>
         </div>
 
         <div class="bg-white rounded-xl border border-gray-200 shadow-xs overflow-hidden">
@@ -180,9 +176,7 @@
                 <tbody class="divide-y divide-gray-50">
                     @forelse($invoices as $inv)
                         @php
-                            $displayStatus = in_array($inv->status, ['partial_late','partial_overdue'])
-                                ? 'Partially Paid'
-                                : ucwords(str_replace('_',' ',$inv->status));
+                            $displayStatus = ucwords(str_replace('_',' ',$inv->status));
                         @endphp
                         <tr class="hover:bg-gray-50 transition-colors">
                             <td class="px-4 py-3">
@@ -206,7 +200,6 @@
                                         @php
                                             $pillCls = match($tp->status) {
                                                 'paid'    => 'bg-green-100 text-green-700',
-                                                'late'    => 'bg-yellow-100 text-yellow-700',
                                                 'overdue' => 'bg-red-100 text-red-700',
                                                 default   => 'bg-gray-100 text-gray-500',
                                             };

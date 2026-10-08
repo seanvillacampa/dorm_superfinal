@@ -11,8 +11,10 @@ class Room extends Model
         'floor',
         'capacity',
         'monthly_rate',
+        'deposit_required',
         'meter_number',
         'status',
+        'is_airconditioned',
     ];
 
     // ── Relationships ────────────────────────────────────────────────────

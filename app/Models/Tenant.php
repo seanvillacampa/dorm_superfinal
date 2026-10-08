@@ -40,4 +40,9 @@ class Tenant extends Model
             ->withPivot(['joined_on', 'left_on'])
             ->withTimestamps();
     }
+
+    public function deposits()
+    {
+        return $this->hasMany(TenantDeposit::class);
+    }
 }

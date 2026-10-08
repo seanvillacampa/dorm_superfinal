@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Register - Dorm Manager</title>
+    <title>Register - Quest Building</title>
 </head>
 <body>
     <h1>Create an account</h1>
-    <p>For the dormitory owner and employees only. Tenant accounts are created by staff.</p>
+    <p>For the building owner and employees only. Tenant accounts are created by staff.</p>
 
     @if ($errors->any())
         <div style="color:red">
@@ -22,8 +22,19 @@
         @csrf
 
         <p>
-            <label for="name">Name</label><br>
-            <input id="name" type="text" name="name" value="{{ old('name') }}" required autofocus>
+            <label for="first_name">First Name</label><br>
+            <input id="first_name" type="text" name="first_name" value="{{ old('first_name') }}" required autofocus>
+            @error('first_name') <span style="color:red">{{ $message }}</span> @enderror
+        </p>
+
+        <p>
+            <label for="middle_name">Middle Name (optional)</label><br>
+            <input id="middle_name" type="text" name="middle_name" value="{{ old('middle_name') }}">
+        </p>
+
+        <p>
+            <label for="last_name">Last Name</label><br>
+            <input id="last_name" type="text" name="last_name" value="{{ old('last_name') }}" required>
         </p>
 
         <p>

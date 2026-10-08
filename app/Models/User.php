@@ -26,10 +26,15 @@ class User extends Authenticatable
 
     protected $fillable = [
         'name',
+        'first_name',
+        'middle_name',
+        'last_name',
         'email',
         'phone',
+        'phone_country_code',
         'password',
         'is_active',
+        'last_login_at',
     ];
 
     protected $hidden = [
@@ -41,9 +46,30 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-            'is_active' => 'boolean',
+            'password'          => 'hashed',
+            'is_active'         => 'boolean',
+            'last_login_at'     => 'datetime',
         ];
+    }
+
+    /**
+     * Accessor: return the full name by concatenating first, middle, last.
+     * Falls back to the 'name' column if the new fields are null.
+     */
+    public function getNameAttribute($value)
+    {
+        // If first_name exists, build from parts
+        if (!empty($this->attributes['first_name'])) {
+            $parts = array_filter([
+                $this->attributes['first_name'] ?? '',
+                $this->attributes['middle_name'] ?? '',
+                $this->attributes['last_name'] ?? '',
+            ]);
+            return implode(' ', $parts);
+        }
+        
+        // Otherwise return the legacy 'name' column
+        return $value;
     }
 
     /** Only present when this user is a tenant. */
@@ -61,5 +87,23 @@ class User extends Authenticatable
     public function primaryRole(): ?string
     {
         return $this->getRoleNames()->first();
+    }
+
+    // ── Convenience role helpers used by the laundry policy ──────────────
+
+    public function isOwner(): bool
+    {
+        return $this->hasRole('owner');
+    }
+
+    /** Front-desk staff = the "employee" role in this system. */
+    public function isFrontDesk(): bool
+    {
+        return $this->hasRole('employee');
+    }
+
+    public function isTenant(): bool
+    {
+        return $this->hasRole('tenant');
     }
 }

@@ -16,9 +16,9 @@ class Contract extends Model
         'start_date',
         'end_date',
         'due_day',
-        'deposit_required',
         'deposit_collected',
         'status',
+        'is_active',
         'contract_file_path',
         'created_by',
     ];
@@ -51,6 +51,25 @@ class Contract extends Model
     public function invoices()
     {
         return $this->hasMany(Invoice::class);
+    }
+
+    public function depositEntries()
+    {
+        return $this->hasMany(DepositEntry::class)->orderBy('date', 'desc');
+    }
+
+    public function tenantDeposits()
+    {
+        return $this->hasMany(TenantDeposit::class);
+    }
+
+    /**
+     * Calculate the current deposit balance.
+     */
+    public function depositBalance(): float
+    {
+        // Sum all tenant deposit balances
+        return $this->tenantDeposits->sum(fn($td) => $td->balance());
     }
 
     public function lastMeterReading()

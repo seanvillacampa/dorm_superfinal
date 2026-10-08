@@ -1,4 +1,4 @@
-<x-layouts.app title="Tenants — Dorm Manager">
+<x-layouts.app title="Tenants — Quest Building">
 
     <x-page-header title="Tenants" badge="Owner + Employee"
         subtitle="{{ $tenants->total() }} active tenants">

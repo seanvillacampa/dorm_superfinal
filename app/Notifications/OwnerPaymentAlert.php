@@ -7,8 +7,9 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * Sent once to the owner when an invoice becomes OVERDUE
- * (grace period ended) — the signal to personally follow up.
+ * Sent ONCE to the owner when an invoice transitions to OVERDUE
+ * (grace period has ended with no payment). This is the signal
+ * to personally follow up with the tenant(s).
  */
 class OwnerPaymentAlert extends Notification
 {
@@ -21,22 +22,35 @@ class OwnerPaymentAlert extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $room    = $this->invoice->contract->room->room_number;
-        $month   = now()->parse($this->invoice->billing_month)->format('F Y');
-        $balance = number_format($this->invoice->balanceDue(), 2);
+        $room      = $this->invoice->contract->room->room_number;
+        $month     = now()->parse($this->invoice->billing_month)->format('F Y');
+        $balance   = number_format($this->invoice->balanceDue(), 2);
+        $dueDate   = $this->invoice->due_date->format('M d, Y');
+        $daysLate  = (int) now()->diffInDays($this->invoice->due_date);
+        $name      = $notifiable->name ?? 'there';
 
         $tenants = $this->invoice->contract->tenants
-            ->map(fn($t) => $t->user->name)
+            ->map(fn ($t) => $t->user->name)
+            ->implode(', ');
+
+        // List which specific tenants are still unpaid
+        $unpaidTenants = $this->invoice->tenantPayments
+            ->where('status', 'overdue')
+            ->map(fn ($tp) => $tp->tenant->user->name . ' (owes ₱' . number_format($tp->balanceDue(), 2) . ')')
             ->implode(', ');
 
         return (new MailMessage)
-            ->subject("🚨 Room {$room} — Invoice Overdue · {$month}")
-            ->greeting("Hello, {(\$notifiable->name ?? 'there')}!")
-            ->line("**Room {$room}** ({$month}) has become overdue.")
+            ->subject("🚨 Overdue Payment — Room {$room} · {$month}")
+            ->greeting("Hello, {$name}!")
+            ->line("**Room {$room}** has an overdue bill for **{$month}**.")
+            ->line("The invoice was due on **{$dueDate}** and the grace period has now ended ({$daysLate} day(s) late).")
+            ->line("---")
             ->line("**Balance remaining: ₱{$balance}**")
-            ->line("**Tenants:** {$tenants}")
-            ->line('This is a one-time alert. Please follow up with the tenant(s) directly.')
+            ->line("**Tenant(s):** {$tenants}")
+            ->line("**Unpaid shares:** {$unpaidTenants}")
+            ->line("---")
+            ->line("This is a one-time alert. Please follow up directly with the tenant(s) listed above.")
             ->action('View Invoice', url(route('invoices.index')))
-            ->salutation('— Dorm Manager (automated alert)');
+            ->salutation('— Quest Building (automated alert)');
     }
 }

@@ -1,4 +1,4 @@
-<x-layouts.app title="Contracts — Dorm Manager">
+<x-layouts.app title="Contracts — Quest Building">
 
     <x-page-header title="Contracts" badge="Owner + Employee"
         subtitle="Contract letters, rent and deposit terms">
@@ -29,10 +29,10 @@
                 <tr class="border-b border-gray-100 text-xs text-gray-400 font-medium uppercase tracking-wide">
                     <th class="px-4 py-3 text-left">Contract</th>
                     <th class="px-4 py-3 text-left">Room</th>
-                    <th class="px-4 py-3 text-left">Start</th>
-                    <th class="px-4 py-3 text-left">End</th>
+                    <th class="px-4 py-3 text-left">Start date</th>
                     <th class="px-4 py-3 text-left">Rent / tenant</th>
                     <th class="px-4 py-3 text-left">Deposit</th>
+                    <th class="px-4 py-3 text-left">Status</th>
                     <th class="px-4 py-3 text-left">Actions</th>
                 </tr>
             </thead>
@@ -44,11 +44,10 @@
                             ? round($contract->room->monthly_rate / $tenantCount, 2)
                             : $contract->room->monthly_rate;
                     @endphp
-                    <tr class="hover:bg-gray-50 transition-colors">
+                    <tr class="{{ !$contract->is_active ? 'opacity-60 bg-gray-50' : 'hover:bg-gray-50' }} transition-colors">
                         <td class="px-4 py-3 font-medium text-gray-900">CT-{{ str_pad($contract->id, 4, '0', STR_PAD_LEFT) }}</td>
                         <td class="px-4 py-3 text-gray-700">{{ $contract->room->room_number }}</td>
                         <td class="px-4 py-3 text-gray-600">{{ $contract->start_date->format('M d, Y') }}</td>
-                        <td class="px-4 py-3 text-gray-600">{{ $contract->end_date->format('M d, Y') }}</td>
                         <td class="px-4 py-3 text-gray-900">
                             ₱{{ number_format($rentPerTenant, 2) }}
                             @if($tenantCount > 1)
@@ -57,7 +56,25 @@
                         </td>
                         <td class="px-4 py-3 text-gray-900">₱{{ number_format($contract->deposit_required, 2) }}</td>
                         <td class="px-4 py-3">
-                            <a href="{{ route('contracts.show', $contract) }}" class="text-xs font-medium text-blue-600 hover:underline">View</a>
+                            @if($contract->is_active)
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Active</span>
+                            @else
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">Inactive</span>
+                            @endif
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-3">
+                                <a href="{{ route('contracts.show', $contract) }}" class="text-xs font-medium text-blue-600 hover:underline">View</a>
+                                @if($contract->is_active)
+                                    <form method="POST" action="{{ route('contracts.deactivate', $contract) }}"
+                                          onsubmit="return confirm('Deactivate contract CT-{{ str_pad($contract->id,4,'0',STR_PAD_LEFT) }}?\n\nThis will:\n• Void all unpaid invoices\n• Mark Room {{ $contract->room->room_number }} as vacant\n\nThis cannot be undone.')">
+                                        @csrf @method('PATCH')
+                                        <button type="submit" class="text-xs font-medium text-red-500 hover:text-red-700 hover:underline">
+                                            Make inactive
+                                        </button>
+                                    </form>
+                                @endif
+                            </div>
                         </td>
                     </tr>
                 @empty

@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
  * Per-tenant payment record for a room invoice.
  * One row per tenant per invoice — tracks their individual share.
  *
- * status values: pending | paid | late | overdue
+ * status values: pending | paid | overdue
  */
 return new class extends Migration
 {
@@ -20,7 +20,7 @@ return new class extends Migration
             $table->foreignId('tenant_id')->constrained()->cascadeOnDelete();
             $table->decimal('share_amount', 10, 2);   // rent ÷ tenant_count
             $table->decimal('amount_paid', 10, 2)->default(0);
-            $table->string('status', 20)->default('pending'); // pending|paid|late|overdue
+            $table->string('status', 20)->default('pending'); // pending|paid|overdue
             $table->string('method', 30)->nullable();
             $table->timestamp('paid_at')->nullable();
             $table->string('paymongo_link_id', 60)->nullable();

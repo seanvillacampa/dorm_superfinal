@@ -47,6 +47,16 @@ class DashboardController extends Controller
         // Attach currentInvoice + currentTenantName to each room (bulk, no N+1)
         Room::withDashboardData($billingMonth, $rooms);
 
+        // Attach unresolved message count to each room
+        $unresolvedMessageCounts = \App\Models\TenantMessage::whereNull('resolved_at')
+            ->select('room_id', DB::raw('COUNT(*) as count'))
+            ->groupBy('room_id')
+            ->pluck('count', 'room_id');
+
+        foreach ($rooms as $room) {
+            $room->unresolvedMessageCount = $unresolvedMessageCounts->get($room->id, 0);
+        }
+
         // ── Stat cards ────────────────────────────────────────────────
         $totalRooms       = $rooms->count();
         $occupiedCount    = $rooms->where('status', 'occupied')->count();
@@ -62,33 +72,60 @@ class DashboardController extends Controller
 
         $billedThisMonth    = $monthInvoices->sum('total_amount');
         $collectedThisMonth = $monthInvoices->sum('amount_paid');
-        $lateCount          = $monthInvoices->where('status', 'late')->count();
         $overdueCount       = $monthInvoices->where('status', 'overdue')->count();
+        
+        // Active tenants (those with active contracts)
+        $activeTenantsCount = Contract::where('status', 'active')
+            ->distinct('id')
+            ->count();
+
+        // ── Recent tenant messages (unresolved) ────────────────────────────
+        $recentMessages = \App\Models\TenantMessage::with(['tenant.user', 'room'])
+            ->whereNull('resolved_at')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get();
 
         // ── Live activity feed (last 10 meaningful events) ────────────
         $recentActivity = $this->buildActivityFeed();
 
         // ── Month coverage for generate-invoices dropdown ─────────────
-        $totalRooms     = Contract::where('status', 'active')->count();
-        $invCounts      = Invoice::select('billing_month', DB::raw('COUNT(*) as cnt'))
+        
+        // Define room count milestones (when new rooms were added)
+        $roomMilestones = [
+            '2026-10' => 29, // October 2026: 29 rooms
+            '2026-09' => 28, // Before October: 28 rooms
+        ];
+        
+        $invCounts = Invoice::select('billing_month', DB::raw('COUNT(*) as cnt'))
             ->where('status', '!=', 'void')
             ->groupBy('billing_month')
             ->pluck('cnt', 'billing_month');
 
         $monthCoverage = collect();
         for ($i = 0; $i <= 12; $i++) {
-            $m      = now()->subMonths($i)->format('Y-m');
-            $cnt    = (int) ($invCounts[$m] ?? 0);
+            $m = now()->subMonths($i)->format('Y-m');
+            $cnt = (int) ($invCounts[$m] ?? 0);
+            
+            // Determine the expected room count for this month
+            $expectedRooms = 28; // Default for oldest months
+            foreach ($roomMilestones as $milestoneMonth => $roomCount) {
+                if ($m >= $milestoneMonth) {
+                    $expectedRooms = $roomCount;
+                    break;
+                }
+            }
+            
             $status = match(true) {
-                $totalRooms > 0 && $cnt >= $totalRooms => 'all',
-                $cnt > 0                               => 'partial',
-                default                                => 'none',
+                $expectedRooms > 0 && $cnt >= $expectedRooms => 'all',
+                $cnt > 0                                     => 'partial',
+                default                                      => 'none',
             };
             $monthCoverage->put($m, [
                 'label'  => now()->subMonths($i)->format('F Y'),
                 'status' => $status,
                 'count'  => $cnt,
-                'total'  => $totalRooms,
+                'total'  => $expectedRooms,
             ]);
         }
 
@@ -101,9 +138,10 @@ class DashboardController extends Controller
             'maintenanceCount',
             'billedThisMonth',
             'collectedThisMonth',
-            'lateCount',
             'overdueCount',
+            'activeTenantsCount',
             'recentActivity',
+            'recentMessages',
             'monthCoverage',
         ));
     }

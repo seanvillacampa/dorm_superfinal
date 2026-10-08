@@ -1,4 +1,4 @@
-<x-layouts.app title="Add Employee — Dorm Manager">
+<x-layouts.app title="Add Employee — Quest Building">
 
     <x-page-header title="Add employee" badge="Owner only" />
 

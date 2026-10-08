@@ -1,4 +1,4 @@
-<x-layouts.app title="Employees & Roles — Dorm Manager">
+<x-layouts.app title="Employees & Roles — Quest Building">
 
     <x-page-header title="Employees &amp; Roles" badge="Owner only"
         subtitle="Manage staff accounts and what each role can do">
@@ -47,7 +47,9 @@
                                 </span>
                             </td>
                             <td class="px-4 py-3"><x-status-badge :status="$u->is_active ? 'active' : 'disabled'" /></td>
-                            <td class="px-4 py-3 text-gray-500 text-xs">—</td>
+                            <td class="px-4 py-3 text-gray-500 text-xs">
+                                {{ $u->last_login_at ? $u->last_login_at->format('M d, Y g:i A') : 'Never' }}
+                            </td>
                             <td class="px-4 py-3">
                                 @if(!$u->hasRole('owner'))
                                     <form method="POST" action="{{ route('employees.toggle', $u) }}" class="inline">
@@ -94,8 +96,8 @@
                     @foreach($perms as $label => [$owner, $employee])
                         <tr>
                             <td class="py-1.5 text-gray-600">{{ $label }}</td>
-                            <td class="text-center">@if($owner)<span class="text-green-500">✓</span>@else<span class="text-gray-300">—</span>@endif</td>
-                            <td class="text-center">@if($employee)<span class="text-green-500">✓</span>@else<span class="text-gray-300">—</span>@endif</td>
+                            <td class="text-center">@if($owner)<span class="text-green-500">Yes</span>@else<span class="text-gray-300">—</span>@endif</td>
+                            <td class="text-center">@if($employee)<span class="text-green-500">Yes</span>@else<span class="text-gray-300">—</span>@endif</td>
                         </tr>
                     @endforeach
                 </tbody>

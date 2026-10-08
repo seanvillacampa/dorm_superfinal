@@ -15,6 +15,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
         ]);
 
+        // Exclude PayMongo webhook from CSRF protection (called by PayMongo servers)
+        $middleware->validateCsrfTokens(except: [
+            'webhooks/paymongo',
+        ]);
+
         // Check is_active on every authenticated request so that sessions
         // created before an account was disabled are invalidated immediately.
         $middleware->appendToGroup('auth', \App\Http\Middleware\EnsureUserIsActive::class);

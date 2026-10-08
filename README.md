@@ -1,59 +1,192 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Dorm Management System
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A comprehensive dormitory management system built with Laravel 12, featuring tenant management, billing, meter readings, laundry services, and PayMongo payment integration.
 
-## About Laravel
+## 🚀 Quick Start
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### For First-Time Setup:
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+1. **Run the setup script:**
+   ```powershell
+   .\setup.ps1
+   ```
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+2. **Start the application:**
+   ```powershell
+   .\start-app.ps1
+   ```
 
-## Learning Laravel
+3. **Configure PayMongo webhook** (see SETUP_GUIDE.md)
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+### For Regular Use:
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+**Start:**
+```powershell
+.\start-app.ps1
+```
 
-## Laravel Sponsors
+**Stop:**
+```powershell
+.\stop-app.ps1
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Or just press any key in the start-app window.
 
-### Premium Partners
+---
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+## 📖 Documentation
 
-## Contributing
+- **SETUP_GUIDE.md** - Complete setup instructions for new machines
+- **PRESENTATION_GUIDE.md** - Guide for demonstrating the system
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+---
 
-## Code of Conduct
+## 🔑 Default Login Credentials
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### Admin Account:
+- Email: `admin@dorm.test`
+- Password: `password`
 
-## Security Vulnerabilities
+### Tenant Account:
+- Email: `tenant1@dorm.test` (tenant1 to tenant20)
+- Password: `password`
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+---
 
-## License
+## 🌐 URLs
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### Local Development:
+- **Application:** http://127.0.0.1:8000
+- **Admin Panel:** http://127.0.0.1:8000/dashboard
+- **Tenant Portal:** http://127.0.0.1:8000/tenant-portal
+
+### ngrok (for webhooks):
+- **Public URL:** Shown when you run `start-app.ps1`
+- **Dashboard:** http://localhost:4040
+
+---
+
+## ✨ Features
+
+### Admin Panel:
+- ✅ Room management with capacity tracking
+- ✅ Tenant management with contract history
+- ✅ Invoice generation (manual & automated)
+- ✅ Payment processing (cash & PayMongo)
+- ✅ Meter readings with consumption tracking
+- ✅ Laundry order management
+- ✅ Financial reports & analytics
+- ✅ Audit logs
+- ✅ Email notifications
+
+### Tenant Portal:
+- ✅ View current bill with breakdown
+- ✅ Payment history
+- ✅ Pay via PayMongo (GCash, Card, QR Ph)
+- ✅ View contract details
+- ✅ Submit laundry orders
+- ✅ Deposit tracking
+
+### PayMongo Integration:
+- ✅ Multiple payment methods (GCash, Card, QR Ph)
+- ✅ Webhook support for automatic payment recording
+- ✅ Test mode for safe demonstration
+- ✅ Payment links with tenant tracking
+
+---
+
+## 🧪 Testing PayMongo
+
+1. Login as tenant (tenant1@dorm.test / password)
+2. Go to "My Bill"
+3. Click "Pay ₱X,XXX.XX with PayMongo"
+4. Complete payment using test credentials
+5. Payment automatically recorded via webhook
+
+**Test Mode:** All payments use test keys (no real money charged)
+
+---
+
+## 🛠️ Troubleshooting
+
+### Application won't start:
+```powershell
+# Check if MySQL is running
+# Check ports 8000 and 4040 are free
+.\stop-app.ps1
+.\start-app.ps1
+```
+
+### Webhook not working:
+1. Check ngrok is running (http://localhost:4040)
+2. Verify webhook URL in PayMongo dashboard
+3. Check webhook secret in `.env` matches PayMongo
+4. View logs: `storage/logs/laravel.log`
+
+### Database errors:
+```powershell
+php artisan migrate:fresh --seed
+```
+
+### Cache issues:
+```powershell
+php artisan config:clear
+php artisan cache:clear
+php artisan view:clear
+```
+
+---
+
+## 📁 Project Structure
+
+```
+dorm_/
+├── app/                    # Application logic
+│   ├── Http/Controllers/   # Controllers
+│   ├── Models/             # Database models
+│   ├── Services/           # Business logic (PayMongo, etc.)
+│   └── Notifications/      # Email notifications
+├── database/
+│   ├── migrations/         # Database schema
+│   └── seeders/            # Demo data seeders
+├── resources/
+│   └── views/              # Blade templates
+├── routes/
+│   └── web.php            # Application routes
+├── public/                # Public assets
+├── storage/logs/          # Application logs
+├── .env                   # Environment configuration
+├── setup.ps1              # Automated setup script
+├── start-app.ps1          # Start script
+├── stop-app.ps1           # Stop script
+├── SETUP_GUIDE.md         # Detailed setup guide
+└── README.md              # This file
+```
+
+---
+
+## 🔒 Security Notes
+
+- All PayMongo keys in `.env.example` are **TEST MODE** keys
+- Default passwords should be changed for production
+- Never commit `.env` file to version control
+- Use environment-specific configuration
+
+---
+
+## 📞 Support & Issues
+
+Check these resources when troubleshooting:
+- `storage/logs/laravel.log` - Application logs
+- http://localhost:4040 - ngrok request inspector
+- Browser Console (F12) - Frontend errors
+
+---
+
+## 📄 License
+
+This project is for educational purposes.
+
+---
+
+**Developed for academic presentation and demonstration purposes.**

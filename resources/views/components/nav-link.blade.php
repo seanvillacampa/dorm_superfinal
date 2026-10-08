@@ -2,15 +2,15 @@
 
 @php
     $href = ($route !== '#') ? route($route) : '#';
-    $base = 'flex items-center gap-2.5 w-full px-2 py-1.5 rounded-md text-sm transition-colors';
+    $base = 'flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors';
     $cls  = $active
-        ? $base . ' bg-blue-50 text-blue-700 font-medium'
-        : $base . ' text-gray-600 hover:bg-gray-100 hover:text-gray-900';
+        ? $base . ' bg-white/12 text-white shadow-inner shadow-white/5'
+        : $base . ' text-emerald-50/70 hover:bg-white/5 hover:text-white';
 @endphp
 
 <a href="{{ $href }}" class="{{ $cls }}">
     @isset($icon)
-        <span class="{{ $active ? 'text-blue-600' : 'text-gray-400' }}">{{ $icon }}</span>
+        <span class="{{ $active ? 'text-white' : 'text-emerald-50/80' }}">{{ $icon }}</span>
     @endisset
-    {{ $slot }}
+    <span class="flex-1">{{ $slot }}</span>
 </a>

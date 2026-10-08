@@ -40,13 +40,15 @@ class Setting extends Model
     /** Return billing rules as a keyed array with defaults. */
     public static function billingRules(): array
     {
-        $keys = ['invoice_generated_on','default_due_day','late_after_days','overdue_grace_days'];
+        $keys = ['invoice_advance_days','default_due_day','overdue_grace_days'];
         $rows = static::whereIn('key', $keys)->pluck('value', 'key');
 
         return [
-            'invoice_generated_on' => (int) ($rows['invoice_generated_on'] ?? 1),
+            // How many days BEFORE the due date to auto-generate the invoice
+            'invoice_advance_days' => (int) ($rows['invoice_advance_days'] ?? 3),
+            // Default day of month rent is due (per-contract can override)
             'default_due_day'      => (int) ($rows['default_due_day'] ?? 5),
-            'late_after_days'      => (int) ($rows['late_after_days'] ?? 0),
+            // Days after the due date before switching from late → overdue
             'overdue_grace_days'   => (int) ($rows['overdue_grace_days'] ?? 3),
         ];
     }

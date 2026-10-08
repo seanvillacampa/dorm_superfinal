@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Set Password — Dorm Manager</title>
+    <title>Set Password — Quest Building</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="h-full flex items-center justify-center">
 
 <div class="w-full max-w-sm">
     <div class="flex items-center gap-2 justify-center mb-8">
-        <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">D</div>
-        <span class="font-semibold text-gray-900">Dorm Manager</span>
+        <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">Q</div>
+        <span class="font-semibold text-gray-900">Quest Building</span>
     </div>
 
     <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">

@@ -1,4 +1,4 @@
-<x-layouts.app title="Rooms — Dorm Manager">
+<x-layouts.app title="Rooms — Quest Building">
 
     <x-page-header title="Rooms" badge="Owner + Employee"
         subtitle="{{ $rooms->total() }} rooms">
@@ -48,30 +48,30 @@
                     <th class="px-4 py-3 text-left">Capacity</th>
                     <th class="px-4 py-3 text-left">Monthly rate</th>
                     <th class="px-4 py-3 text-left">Meter no.</th>
-                    <th class="px-4 py-3 text-left">Tenant</th>
                     <th class="px-4 py-3 text-left">Status</th>
                     <th class="px-4 py-3 text-left">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
                 @forelse($rooms as $room)
-                    @php
-                        $tenantName = $room->activeContract?->tenants->first()?->user->name ?? '—';
-                    @endphp
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-4 py-3 font-semibold text-gray-900">{{ $room->room_number }}</td>
                         <td class="px-4 py-3 text-gray-600">{{ $room->floor }}</td>
-                        <td class="px-4 py-3 text-gray-600">{{ $room->capacity }}</td>
+                        <td class="px-4 py-3 text-gray-600">
+                            @php
+                                $currentTenants = $room->activeContract?->tenants->count() ?? 0;
+                            @endphp
+                            <span class="font-medium {{ $currentTenants > 0 ? 'text-gray-900' : 'text-gray-400' }}">{{ $currentTenants }}</span><span class="text-gray-400">/{{ $room->capacity }}</span>
+                        </td>
                         <td class="px-4 py-3 text-gray-900">₱{{ number_format($room->monthly_rate, 2) }}</td>
                         <td class="px-4 py-3 text-gray-500">{{ $room->meter_number ?? '—' }}</td>
-                        <td class="px-4 py-3 text-gray-600">{{ $tenantName }}</td>
                         <td class="px-4 py-3"><x-status-badge :status="$room->status" /></td>
                         <td class="px-4 py-3">
                             <a href="{{ route('rooms.edit', $room) }}" class="text-xs font-medium text-blue-600 hover:underline">Edit</a>
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="px-4 py-8 text-center text-sm text-gray-400">No rooms found.</td></tr>
+                    <tr><td colspan="7" class="px-4 py-8 text-center text-sm text-gray-400">No rooms found.</td></tr>
                 @endforelse
             </tbody>
         </table>

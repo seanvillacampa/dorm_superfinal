@@ -40,6 +40,6 @@ class InvoiceDueReminder extends Notification
             ->action('Pay with PayMongo', url(route('tenant.bill')))
             ->line('You can pay using GCash, Maya, Card, or QR Ph.')
             ->line('If you have already paid, please disregard this message.')
-            ->salutation('— Dorm Manager');
+            ->salutation('— Quest Building');
     }
 }

@@ -23,13 +23,15 @@ class TenantController extends Controller
         if ($request->filled('search')) {
             $s = '%'.$request->search.'%';
             $query->where(fn ($q) =>
-                $q->where('users.name', 'like', $s)
+                $q->where('users.first_name', 'like', $s)
+                  ->orWhere('users.middle_name', 'like', $s)
+                  ->orWhere('users.last_name', 'like', $s)
                   ->orWhere('users.email', 'like', $s)
                   ->orWhere('users.phone', 'like', $s)
             );
         }
 
-        $tenants = $query->orderBy('users.name')->paginate(10)->withQueryString();
+        $tenants = $query->orderBy('users.first_name')->paginate(10)->withQueryString();
 
         return view('tenants.index', compact('tenants'));
     }
@@ -42,22 +44,59 @@ class TenantController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name'            => 'required|string|max:255',
+            'first_name'      => 'required|string|max:255',
+            'middle_name'     => 'nullable|string|max:255',
+            'last_name'       => 'required|string|max:255',
             'email'           => 'required|email|unique:users,email',
             'phone'           => 'nullable|string|max:30',
-            'birthdate'       => 'nullable|date',
+            'phone_country_code' => 'nullable|string|max:5',
+            'birthdate'       => 'nullable|date|before:' . now()->subYears(18)->format('Y-m-d'),
             'id_type'         => 'nullable|in:National ID,Passport,Student ID,Driver\'s License,PRC ID,UMID',
             'id_number'       => 'nullable|string|max:50',
             'emergency_name'  => 'nullable|string|max:255',
             'emergency_phone' => 'nullable|string|max:30',
+            'emergency_phone_country_code' => 'nullable|string|max:5',
+        ], [
+            'birthdate.before' => 'Tenant must be at least 18 years old.',
         ]);
+
+        // Check uniqueness of first_name + middle_name + last_name combination
+        $nameQuery = User::where('first_name', $data['first_name'])
+            ->where('last_name', $data['last_name']);
+        
+        // Handle middle name comparison (both null or both equal)
+        if (empty($data['middle_name'])) {
+            $nameQuery->whereNull('middle_name');
+        } else {
+            $nameQuery->where('middle_name', $data['middle_name']);
+        }
+        
+        $nameExists = $nameQuery->exists();
+
+        if ($nameExists) {
+            return back()->withErrors([
+                'first_name' => 'A tenant with this exact name already exists.'
+            ])->withInput();
+        }
 
         // Create user + tenant inside transaction
         $user = DB::transaction(function () use ($data) {
+            // Combine names for the 'name' field
+            $nameParts = array_filter([
+                $data['first_name'],
+                $data['middle_name'] ?? null,
+                $data['last_name']
+            ]);
+            $fullName = implode(' ', $nameParts);
+            
             $user = User::create([
-                'name'      => $data['name'],
+                'name'        => $fullName,
+                'first_name' => $data['first_name'],
+                'middle_name' => $data['middle_name'] ?? null,
+                'last_name'   => $data['last_name'],
                 'email'     => $data['email'],
                 'phone'     => $data['phone'] ?? null,
+                'phone_country_code' => $data['phone_country_code'] ?? '+63',
                 'password'  => Hash::make(\Illuminate\Support\Str::random(16)),
                 'is_active' => true,
             ]);

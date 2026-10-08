@@ -10,8 +10,13 @@ export default defineConfig({
         }),
         tailwindcss(),
     ],
-    // Use relative paths so built assets work on any domain (localhost, ngrok, production)
+    // Empty string = relative paths — assets load on ANY domain
+    // (localhost, cloudflare tunnel, ngrok, production) without rebuilding
     base: '',
+    build: {
+        // Ensure manifest uses relative asset paths
+        assetsInlineLimit: 0,
+    },
     server: {
         watch: {
             ignored: ['**/storage/framework/views/**'],

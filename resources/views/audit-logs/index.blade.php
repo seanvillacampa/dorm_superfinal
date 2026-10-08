@@ -1,4 +1,4 @@
-<x-layouts.app title="Audit Logs — Dorm Manager">
+<x-layouts.app title="Audit Logs — Quest Building">
 
     <x-page-header title="Audit Logs" badge="Owner only"
         subtitle="Insert-only record of who changed what">

@@ -23,8 +23,10 @@ class LoginController extends Controller
     public function store(LoginRequest $request)
     {
         $request->authenticate();
-
         $request->session()->regenerate();
+
+        // Record the login timestamp
+        $request->user()->update(['last_login_at' => now()]);
 
         return redirect()->intended(route('dashboard'));
     }

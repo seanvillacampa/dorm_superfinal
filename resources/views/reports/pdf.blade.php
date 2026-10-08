@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>Dorm Manager Report — {{ now()->parse($month)->format('F Y') }}</title>
+<title>Quest Building Report — {{ now()->parse($month)->format('F Y') }}</title>
 <style>
   body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 32px; }
   h1   { font-size: 20px; margin-bottom: 4px; }
@@ -18,7 +18,6 @@
   tr:last-child td { border-bottom: none; }
   .right { text-align: right; }
   .status-paid     { color: #16a34a; font-weight: 600; }
-  .status-late     { color: #ca8a04; font-weight: 600; }
   .status-overdue  { color: #dc2626; font-weight: 600; }
   .status-partial  { color: #ea580c; font-weight: 600; }
   .status-pending  { color: #6b7280; }
@@ -27,7 +26,7 @@
 </head>
 <body>
 
-<h1>Dorm Manager — Income Report</h1>
+<h1>Quest Building — Income Report</h1>
 <p class="meta">
   Period: {{ now()->parse($month)->format('F Y') }} &nbsp;|&nbsp;
   Generated: {{ now()->format('M d, Y g:i A') }}
@@ -53,7 +52,7 @@
   <tr>
     <th>Status</th><th class="right">Rooms</th><th class="right">Amount</th>
   </tr>
-  @foreach(['paid','partial','pending','late','overdue'] as $s)
+  @foreach(['paid','partial','pending','overdue'] as $s)
     @php $cnt = $statusCounts[$s] ?? 0; @endphp
     <tr>
       <td class="status-{{ $s }}">{{ ucfirst($s) }}</td>
@@ -75,7 +74,6 @@
       $tenants = $inv->contract->tenants->map(fn($t)=>$t->user->name)->implode(', ');
       $sCls = match(true) {
         $inv->status === 'paid'    => 'status-paid',
-        $inv->status === 'late'    => 'status-late',
         $inv->status === 'overdue' => 'status-overdue',
         str_starts_with($inv->status,'partial') => 'status-partial',
         default => 'status-pending',

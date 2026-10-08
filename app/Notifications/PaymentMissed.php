@@ -38,6 +38,6 @@ class PaymentMissed extends Notification
             ->line('Please settle your payment as soon as possible to avoid further action.')
             ->action('Pay Now with PayMongo', url(route('tenant.bill')))
             ->line('Accepts GCash, Maya, Card, and QR Ph.')
-            ->salutation('— Dorm Manager');
+            ->salutation('— Quest Building');
     }
 }
