@@ -60,7 +60,7 @@ php artisan config:clear
 
 #### A. Generate Payment Link (as Owner)
 1. Login as owner/admin
-2. Go to Invoices → Select an invoice
+2. Go to Billing Statements → Select a billing statement
 3. Click "Generate Payment Link"
 4. A PayMongo link will be created
 
@@ -103,7 +103,7 @@ Get-Content storage\logs\laravel.log -Tail 50 -Wait
 **Red flags:**
 - ❌ `Invalid signature` → Wrong webhook secret in .env
 - ❌ `TenantPayment NOT found` → Link not properly associated
-- ❌ `could not match invoice` → Invoice matching failed
+- ❌ `could not match billing statement` → Billing statement matching failed
 
 ### Check 3: Verify Database Changes
 ```powershell
@@ -121,11 +121,11 @@ echo "Paid At: " . $tp->paid_at . "\n";
 $payment = \App\Models\Payment::latest()->first();
 echo "Amount: " . $payment->amount . "\n";
 echo "Method: " . $payment->method . "\n";
-echo "Invoice ID: " . $payment->invoice_id . "\n";
+echo "Billing Statement ID: " . $payment->invoice_id . "\n";
 
-// Check invoice status
+// Check billing statement status
 $invoice = \App\Models\Invoice::find($payment->invoice_id);
-echo "Invoice Status: " . $invoice->status . "\n";
+echo "Billing Statement Status: " . $invoice->status . "\n";
 ```
 
 ---
@@ -145,7 +145,7 @@ echo "Invoice Status: " . $invoice->status . "\n";
 
 ### Issue 2: "Webhook received but payment not recorded"
 
-**Cause:** Invoice matching failed
+**Cause:** Billing statement matching failed
 
 **Solution:**
 Run this debug script:
@@ -178,7 +178,7 @@ if (!$tenantPay) {
 echo "Last Payment Link Created:\n";
 echo "  TenantPayment ID: {$tenantPay->id}\n";
 echo "  Tenant ID: {$tenantPay->tenant_id}\n";
-echo "  Invoice ID: {$tenantPay->invoice_id}\n";
+echo "  Billing Statement ID: {$tenantPay->invoice_id}\n";
 echo "  Link ID: {$tenantPay->paymongo_link_id}\n";
 echo "  Status: {$tenantPay->status}\n";
 echo "  Amount Paid: {$tenantPay->amount_paid}\n";
@@ -195,45 +195,45 @@ if ($payment) {
     echo "  Method: {$payment->method}\n";
     echo "  Reference: {$payment->reference}\n";
 } else {
-    echo "❌ No payment record found for this invoice!\n";
+    echo "❌ No payment record found for this billing statement!\n";
 }
 
-// Check invoice status
+// Check billing statement status
 $invoice = Invoice::find($tenantPay->invoice_id);
-echo "\nInvoice Status: {$invoice->status}\n";
-echo "Invoice Number: {$invoice->invoice_number}\n";
+echo "\nBilling Statement Status: {$invoice->status}\n";
+echo "Billing Statement Number: {$invoice->invoice_number}\n";
 ```
 
 ---
 
 ### Issue 3: "Payment recorded but status still 'pending'"
 
-**Cause:** Invoice status not recomputed, or TenantPayment.status not updated
+**Cause:** Billing statement status not recomputed, or TenantPayment.status not updated
 
 **Solution:**
 ```powershell
 php artisan invoices:resync-statuses
 ```
 
-This will recompute all invoice statuses from their TenantPayment records.
+This will recompute all billing statement statuses from their TenantPayment records.
 
 ---
 
 ### Issue 4: "Paid in PayMongo but showing in tenant portal as unpaid"
 
-**Cause:** The tenant portal shows the OLDEST unpaid invoice, not the one just paid
+**Cause:** The tenant portal shows the OLDEST unpaid billing statement, not the one just paid
 
 **Check:**
-1. Does this tenant have older unpaid invoices?
+1. Does this tenant have older unpaid billing statements?
 2. If yes, the system correctly shows the oldest one first
-3. The invoice you just paid might be for a newer month
+3. The billing statement you just paid might be for a newer month
 
 **To verify:**
 ```powershell
-php check-tenant-invoices.php
+php check-tenant-billing-statements.php
 ```
 
-Create `check-tenant-invoices.php`:
+Create `check-tenant-billing-statements.php`:
 ```php
 <?php
 require __DIR__.'/vendor/autoload.php';
@@ -249,11 +249,11 @@ $tenantPayments = \App\Models\TenantPayment::where('tenant_id', $tenantId)
     ->select('tenant_payments.*')
     ->get();
 
-echo "All invoices for Tenant #{$tenantId}:\n\n";
+echo "All billing statements for Tenant #{$tenantId}:\n\n";
 foreach ($tenantPayments as $tp) {
     echo "{$tp->invoice->billing_month} - {$tp->status} - ₱{$tp->share_amount}\n";
     echo "  Amount Paid: ₱" . ($tp->amount_paid ?? 0) . "\n";
-    echo "  Invoice Status: {$tp->invoice->status}\n\n";
+    echo "  Billing Statement Status: {$tp->invoice->status}\n\n";
 }
 ```
 
@@ -280,8 +280,8 @@ After making a test payment:
 - [ ] Database: TenantPayment.amount_paid = share_amount
 - [ ] Database: Payment record created
 - [ ] Database: Invoice.status updated (paid/partial)
-- [ ] Owner portal: Payment shows in invoice details
-- [ ] Tenant portal: Paid invoice no longer shows as unpaid
+- [ ] Owner portal: Payment shows in billing statement details
+- [ ] Tenant portal: Paid billing statement no longer shows as unpaid
 
 ---
 
@@ -291,7 +291,7 @@ After making a test payment:
 2. **Webhook secret is different from API secret** - don't confuse them
 3. **Free ngrok times out after 2 hours** - need to restart and update URL
 4. **Tenant portal shows OLDEST unpaid first** - not the most recent
-5. **Cascade payment logic** - paying latest invoice marks all older as paid if carry_over_balance exists
+5. **Cascade payment logic** - paying latest billing statement marks all older as paid if carry_over_balance exists
 6. **Always check logs first** - they tell you exactly what happened
 
 ---
@@ -309,4 +309,4 @@ This will check:
 - Database state
 - Recent webhook activity
 - Payment records
-- Invoice statuses
+- Billing statement statuses

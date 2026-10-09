@@ -39,7 +39,7 @@ class PayMongoService
                 'attributes' => [
                     'amount'      => $amountCentavos,
                     'currency'    => 'PHP',
-                    'description' => $description ?: "Invoice {$invoice->invoice_number}",
+                    'description' => $description ?: "Billing Statement {$invoice->invoice_number}",
                     'remarks'     => $invoice->invoice_number,
                 ],
             ],

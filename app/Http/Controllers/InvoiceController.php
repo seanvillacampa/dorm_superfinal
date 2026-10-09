@@ -14,7 +14,7 @@ use Illuminate\Support\Collection;
 
 class InvoiceController extends Controller
 {
-    // ── Latest created invoices ──────────────────────────────────────────
+    // ── Latest created billing statements ──────────────────────────────────────────
 
     public function latest(Request $request)
     {
@@ -62,11 +62,11 @@ class InvoiceController extends Controller
         ));
     }
 
-    // ── Room → Invoice redirect ───────────────────────────────────────────
+    // ── Room → Billing Statement redirect ───────────────────────────────────────────────
 
     /**
      * Called when a room card is clicked on the dashboard.
-     * If an invoice exists for the current month, show it.
+     * If a billing statement exists for the current month, show it.
      * If not, redirect back with a warning prompt to generate one.
      */
     public function roomInvoice(\App\Models\Room $room)
@@ -87,9 +87,9 @@ class InvoiceController extends Controller
             return redirect()->route('invoices.show', $invoice);
         }
 
-        // No invoice yet — redirect to invoices page with a prompt
+        // No billing statement yet — redirect to invoices page with a prompt
         return redirect()->route('invoices.index', ['month' => $month])
-            ->with('warning', "No invoice yet for Room {$room->room_number} ({$month}). Generate invoices to create one.");
+            ->with('warning', "No billing statement yet for Room {$room->room_number} ({$month}). Generate billing statements to create one.");
     }
 
     // ── Month coverage helper ────────────────────────────────────────────
@@ -242,9 +242,9 @@ class InvoiceController extends Controller
                     $electricity = round($reading->kwh_used * $rate, 2);
                 }
 
-                // ── Carry-over from previous invoice ────────────────────
-                $carryOver   = 0.0; // unpaid balance from prev invoice
-                $creditBal   = 0.0; // overpayment from prev invoice
+                // ── Carry-over from previous billing statement ────────────────────
+                $carryOver   = 0.0; // unpaid balance from prev billing statement
+                $creditBal   = 0.0; // overpayment from prev billing statement
 
                 $prevInvoice = Invoice::where('contract_id', $contract->id)
                     ->where('billing_month', '<', $month)
@@ -257,10 +257,10 @@ class InvoiceController extends Controller
                     $prevCredit  = max(0, $prevInvoice->amount_paid - $prevInvoice->effectiveTotal());
 
                     if ($prevBalance > 0) {
-                        // Previous invoice has unpaid balance — add it to this month
+                        // Previous billing statement has unpaid balance — add it to this month
                         $carryOver = round($prevBalance, 2);
                     } elseif ($prevCredit > 0) {
-                        // Previous invoice was overpaid — credit this month
+                        // Previous billing statement was overpaid — credit this month
                         $creditBal = round($prevCredit, 2);
                     }
                 }
@@ -273,7 +273,7 @@ class InvoiceController extends Controller
                     ->day($contract->due_day);
 
                 $invoice = Invoice::create([
-                    'invoice_number'     => 'INV-' . str_replace('-', '', substr($month, 2)) . '-' . $contract->room->room_number,
+                    'invoice_number'     => 'BILL-' . str_replace('-', '', substr($month, 2)) . '-' . $contract->room->room_number,
                     'contract_id'        => $contract->id,
                     'tenant_count'       => $tenantCount,
                     'billing_month'      => $month,
@@ -306,10 +306,10 @@ class InvoiceController extends Controller
         });
 
         AuditLog::record('Generated', 'Invoice', null,
-            "{$created} room invoices generated for {$month}");
+            "{$created} room billing statements generated for {$month}");
 
         return redirect()->route('invoices.index', ['month' => $month])
-            ->with('success', "{$created} invoice(s) generated for {$month}.");
+            ->with('success', "{$created} billing statement(s) generated for {$month}.");
     }
 
     // ── Cancel (bulk void unpaid) ─────────────────────────────────────────
@@ -327,13 +327,13 @@ class InvoiceController extends Controller
         TenantPayment::whereIn('invoice_id', $ids)->update(['status' => 'void']);
 
         AuditLog::record('Cancelled', 'Invoice', null,
-            "{$ids->count()} invoices cancelled for {$month}");
+            "{$ids->count()} billing statements cancelled for {$month}");
 
         return redirect()->route('invoices.index', ['month' => $month])
-            ->with('success', "{$ids->count()} invoice(s) cancelled for {$month}.");
+            ->with('success', "{$ids->count()} billing statement(s) cancelled for {$month}.");
     }
 
-    // ── Void (single invoice, owner only) ────────────────────────────────
+    // ── Void (single billing statement, owner only) ────────────────────────────────
 
     public function void(Invoice $invoice)
     {
@@ -345,6 +345,6 @@ class InvoiceController extends Controller
             ->update(['status' => 'void']);
 
         AuditLog::record('Voided', 'Invoice', $invoice->id, "status: {$old} → void");
-        return back()->with('success', "Invoice {$invoice->invoice_number} voided.");
+        return back()->with('success', "Billing Statement {$invoice->invoice_number} voided.");
     }
 }

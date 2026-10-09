@@ -138,7 +138,7 @@ class GenerateScheduledInvoices extends Command
                 $electricity, $carryOver, $creditBal, $total, $tenantCount, $shareAmt, &$generated
             ) {
                 $invoice = Invoice::create([
-                    'invoice_number'     => 'INV-' . str_replace('-', '', substr($billingMonth, 2))
+                    'invoice_number'     => 'BILL-' . str_replace('-', '', substr($billingMonth, 2))
                                            . '-' . $contract->room->room_number,
                     'contract_id'        => $contract->id,
                     'tenant_count'       => $tenantCount,

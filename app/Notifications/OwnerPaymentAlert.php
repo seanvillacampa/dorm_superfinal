@@ -7,7 +7,7 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * Sent ONCE to the owner when an invoice transitions to OVERDUE
+ * Sent ONCE to the owner when a billing statement transitions to OVERDUE
  * (grace period has ended with no payment). This is the signal
  * to personally follow up with the tenant(s).
  */
@@ -43,14 +43,14 @@ class OwnerPaymentAlert extends Notification
             ->subject("🚨 Overdue Payment — Room {$room} · {$month}")
             ->greeting("Hello, {$name}!")
             ->line("**Room {$room}** has an overdue bill for **{$month}**.")
-            ->line("The invoice was due on **{$dueDate}** and the grace period has now ended ({$daysLate} day(s) late).")
+            ->line("The billing statement was due on **{$dueDate}** and the grace period has now ended ({$daysLate} day(s) late).")
             ->line("---")
             ->line("**Balance remaining: ₱{$balance}**")
             ->line("**Tenant(s):** {$tenants}")
             ->line("**Unpaid shares:** {$unpaidTenants}")
             ->line("---")
             ->line("This is a one-time alert. Please follow up directly with the tenant(s) listed above.")
-            ->action('View Invoice', url(route('invoices.index')))
+            ->action('View Billing Statement', url(route('invoices.index')))
             ->salutation('— Quest Building (automated alert)');
     }
 }

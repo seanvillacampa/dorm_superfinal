@@ -52,12 +52,12 @@
         {{-- Billing rules --}}
         <div class="bg-white rounded-xl border border-gray-200 shadow-xs p-5">
             <h2 class="text-sm font-semibold text-gray-900 mb-1">Billing rules</h2>
-            <p class="text-xs text-gray-400 mb-4">Controls when invoices are generated and when they become late or overdue.</p>
+            <p class="text-xs text-gray-400 mb-4">Controls when billing statements are generated and when they become late or overdue.</p>
             <form id="billing-form" method="POST" action="{{ route('settings.billing') }}" class="space-y-4">
                 @csrf
                 <div>
                     <label class="block text-xs font-medium text-gray-700 mb-1">
-                        Days before due date to generate invoice
+                        Days before due date to generate billing statement
                         <span class="text-gray-400 font-normal">(advance notice)</span>
                     </label>
                     <input type="number" name="invoice_advance_days"

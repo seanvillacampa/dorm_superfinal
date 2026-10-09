@@ -3,7 +3,7 @@
     <div class="flex items-start justify-between mb-6">
         <div>
             <div class="flex items-center gap-2 flex-wrap">
-                <h1 class="text-2xl font-bold text-gray-900">Invoice {{ $invoice->invoice_number }}</h1>
+                <h1 class="text-2xl font-bold text-gray-900">Billing Statement {{ $invoice->invoice_number }}</h1>
                 <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Owner + Employee</span>
                 <x-status-badge :status="str_replace('_',' ',$invoice->status)" />
             </div>
@@ -29,7 +29,7 @@
                 <div class="grid grid-cols-4 gap-4 mb-5 text-sm">
                     <div><p class="text-xs text-gray-400">Billing month</p><p class="font-medium text-gray-900 mt-0.5">{{ now()->parse($invoice->billing_month)->format('F Y') }}</p></div>
                     <div><p class="text-xs text-gray-400">Due date</p><p class="font-medium text-gray-900 mt-0.5">{{ $invoice->due_date->format('M d, Y') }}</p></div>
-                    <div><p class="text-xs text-gray-400">Invoice no.</p><p class="font-medium text-gray-900 mt-0.5">{{ $invoice->invoice_number }}</p></div>
+                    <div><p class="text-xs text-gray-400">Statement no.</p><p class="font-medium text-gray-900 mt-0.5">{{ $invoice->invoice_number }}</p></div>
                     <div><p class="text-xs text-gray-400">Tenants</p><p class="font-medium text-gray-900 mt-0.5">{{ $invoice->tenant_count }}</p></div>
                 </div>
 

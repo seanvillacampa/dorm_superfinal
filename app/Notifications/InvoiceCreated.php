@@ -8,7 +8,7 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * Sent to every tenant when their room's invoice is auto-generated
+ * Sent to every tenant when their room's billing statement is auto-generated
  * (invoice_advance_days before the due date).
  *
  * Replaces InvoiceDueReminder. This email is the tenant's heads-up

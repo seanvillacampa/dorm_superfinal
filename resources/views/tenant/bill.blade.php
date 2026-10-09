@@ -26,7 +26,7 @@
             </div>
         @elseif(!$invoice)
             <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm font-medium text-emerald-700">
-                No invoice has been generated for this month yet. Check back later.
+                No billing statement has been generated for this month yet. Check back later.
             </div>
         @else
             @php

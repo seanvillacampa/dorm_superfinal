@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * Runs daily at 00:05 AFTER invoices:generate-scheduled.
  *
- * Calls recomputeStatus() on every unpaid invoice. That method
+ * Calls recomputeStatus() on every unpaid billing statement. That method
  * derives the correct status (pending/late/overdue) from the due
  * date and grace period settings, then sends notification emails
  * when status transitions occur.
@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Log;
 class ProcessInvoiceStatuses extends Command
 {
     protected $signature   = 'invoices:process-statuses';
-    protected $description = 'Recompute invoice statuses (pending/late/overdue) and send reminder emails';
+    protected $description = 'Recompute billing statement statuses (pending/late/overdue) and send reminder emails';
 
     public function handle(): void
     {
@@ -50,7 +50,7 @@ class ProcessInvoiceStatuses extends Command
             if ($oldStatus !== $newStatus) {
                 $updated++;
 
-                // Invoice just became late — notify all unpaid tenants
+                // Billing statement just became late — notify all unpaid tenants
                 if ($newStatus === 'late') {
                     foreach ($invoice->tenantPayments->where('status', 'late') as $tp) {
                         $this->sendNotification(
@@ -61,7 +61,7 @@ class ProcessInvoiceStatuses extends Command
                     }
                 }
 
-                // Invoice just became overdue — notify tenants + owner (once)
+                // Billing statement just became overdue — notify tenants + owner (once)
                 if ($newStatus === 'overdue') {
                     foreach ($invoice->tenantPayments->where('status', 'overdue') as $tp) {
                         $this->sendNotification(
@@ -77,7 +77,7 @@ class ProcessInvoiceStatuses extends Command
             }
         }
 
-        $this->info("Status processing complete — {$updated} invoice(s) transitioned.");
+        $this->info("Status processing complete — {$updated} billing statement(s) transitioned.");
     }
 
     private function sendNotification($notifiable, $notification, string $label): void

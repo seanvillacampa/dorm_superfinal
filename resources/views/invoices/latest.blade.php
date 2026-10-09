@@ -6,7 +6,7 @@
             <a href="{{ route('invoices.index') }}"
                class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
-                All Invoices
+                All Statements
             </a>
         </x-slot:actions>
     </x-page-header>
@@ -24,7 +24,7 @@
                 <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
             </svg>
             <input type="text" name="search" value="{{ $search }}"
-                   placeholder="Room number or invoice #…"
+                   placeholder="Room number or statement #…"
                    class="bg-transparent text-xs text-gray-600 placeholder-gray-400 outline-none w-full" />
         </div>
 
@@ -71,7 +71,7 @@
         @endif
 
         <p class="ml-auto text-xs text-gray-400">
-            {{ $invoices->total() }} invoice(s)
+            {{ $invoices->total() }} billing statement(s)
             @if($search || $status || $month) · filtered @endif
         </p>
     </form>
@@ -81,7 +81,7 @@
         <table class="w-full text-sm">
             <thead>
                 <tr class="border-b border-gray-100 text-xs text-gray-400 font-medium uppercase tracking-wide">
-                    <th class="px-4 py-3 text-left">Invoice #</th>
+                    <th class="px-4 py-3 text-left">Statement #</th>
                     <th class="px-4 py-3 text-left">Room</th>
                     <th class="px-4 py-3 text-left">Billing month</th>
                     <th class="px-4 py-3 text-left">Due date</th>
@@ -116,7 +116,7 @@
                         <td class="px-4 py-3">
                             @if($inv->status !== 'paid' && auth()->user()->hasRole('owner'))
                                 <form method="POST" action="{{ route('invoices.void', $inv) }}"
-                                      onsubmit="return confirm('Cancel invoice {{ $inv->invoice_number }}?')">
+                                      onsubmit="return confirm('Cancel billing statement {{ $inv->invoice_number }}?')">
                                     @csrf
                                     <button type="submit"
                                             class="text-xs font-medium text-red-500 hover:text-red-700 hover:underline">
@@ -132,10 +132,10 @@
                     <tr>
                         <td colspan="10" class="px-4 py-10 text-center text-sm text-gray-400">
                             @if($search || $status || $month)
-                                No invoices match your filters.
+                                No billing statements match your filters.
                                 <a href="{{ route('invoices.latest') }}" class="text-blue-600 hover:underline ml-1">Clear filters</a>
                             @else
-                                No invoices found.
+                                No billing statements found.
                             @endif
                         </td>
                     </tr>
@@ -145,7 +145,7 @@
         <div class="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
             <p class="text-xs text-gray-400">
                 Showing {{ $invoices->firstItem() ?? 0 }}–{{ $invoices->lastItem() ?? 0 }}
-                of {{ $invoices->total() }} invoices
+                of {{ $invoices->total() }} billing statements
             </p>
             {{ $invoices->links('vendor.pagination.simple-tailwind') }}
         </div>

@@ -100,7 +100,7 @@ class PaymentController extends Controller
                             $oldInv->refresh();
                             $oldInv->recomputeStatus();
                             
-                            Log::info('Manual payment: Cascaded to older invoice', [
+                            Log::info('Manual payment: Cascaded to older billing statement', [
                                 'old_invoice' => $oldInv->invoice_number,
                                 'tenant_id'   => $tenantPay->tenant_id,
                             ]);

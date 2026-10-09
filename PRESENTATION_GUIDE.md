@@ -73,12 +73,12 @@
 
 ---
 
-### 3. Billing & Invoices (4 minutes)
+### 3. Billing & Billing Statements (4 minutes)
 
 **Show:**
-1. Create manual invoice for a tenant
-2. Show invoice details with breakdown (rent + utilities)
-3. Show invoice status lifecycle (pending → partial → paid)
+1. Create manual billing statement for a tenant
+2. Show billing statement details with breakdown (rent + utilities)
+3. Show billing statement status lifecycle (pending → partial → paid)
 
 **Key Features:**
 - ✅ Automatic rent calculation based on room sharing
@@ -89,11 +89,11 @@
 **Demo Script:**
 ```
 1. Go to Meter Readings → Show recorded readings for current month
-2. Go to Invoices → Create Invoice
+2. Go to Billing Statements → Create Billing Statement
 3. Select a contract, show calculation breakdown
 4. Show rent divided by number of tenants
 5. Show electricity calculated from meter readings
-6. Create invoice and show it in list
+6. Create billing statement and show it in list
 ```
 
 ---
@@ -108,13 +108,13 @@
 3. Complete payment using test credentials
 4. Show webhook received in ngrok dashboard
 5. Show payment automatically recorded in system
-6. Show invoice status updated to "paid"
+6. Show billing statement status updated to "paid"
 7. Show admin notification of payment
 
 **Key Features:**
 - ✅ Multiple payment methods (GCash, Card, QR Ph)
 - ✅ Real-time webhook integration
-- ✅ Automatic payment matching to invoices
+- ✅ Automatic payment matching to billing statements
 - ✅ Instant updates on both tenant and admin sides
 
 **Demo Script:**
@@ -153,9 +153,9 @@ DEMONSTRATE:
    - "The payment was recorded automatically"
    - Show payment details with PayMongo reference
 
-5. Invoice Update:
-   - Go to Invoices
-   - Show invoice status changed to "paid"
+5. Billing Statement Update:
+   - Go to Billing Statements
+   - Show billing statement status changed to "paid"
    - Show amount paid updated
 ```
 
@@ -216,7 +216,7 @@ DEMONSTRATE:
 
 **Best Practices:**
 - Database transactions for payment recording
-- Automatic invoice status computation
+- Automatic billing statement status computation
 - Comprehensive audit logging
 - Input validation and error handling
 
@@ -292,16 +292,16 @@ php artisan migrate:fresh --seed
 1. Show vacant room
 2. Add contract with tenants
 3. Record meter reading
-4. Generate invoice
+4. Generate billing statement
 5. Tenant pays via PayMongo
 6. Show payment recorded automatically
 
 ### Scenario 2: Payment Verification (3 minutes)
-1. Show unpaid invoice
+1. Show unpaid billing statement
 2. Make payment
 3. Show webhook in ngrok dashboard
 4. Show payment in admin panel
-5. Show invoice status updated
+5. Show billing statement status updated
 
 ### Scenario 3: Admin Features (3 minutes)
 1. Show room capacity enforcement
@@ -318,7 +318,7 @@ In case of demo failure, have these ready:
 1. ✅ Successful PayMongo payment screen
 2. ✅ ngrok dashboard showing webhook POST request
 3. ✅ Payment recorded in admin panel
-4. ✅ Invoice status changed to "paid"
+4. ✅ Billing statement status changed to "paid"
 5. ✅ Tenant portal showing cleared balance
 6. ✅ Email notification received
 7. ✅ Full dashboard view with data

@@ -21,7 +21,7 @@
         </div>
         @if($contract->is_active)
             <form method="POST" action="{{ route('contracts.deactivate', $contract) }}"
-                  onsubmit="return confirm('Deactivate this contract?\n\nThis will void all unpaid invoices and mark Room {{ $contract->room->room_number }} as vacant.\nThis cannot be undone.')">
+                  onsubmit="return confirm('Deactivate this contract?\n\nThis will void all unpaid billing statements and mark Room {{ $contract->room->room_number }} as vacant.\nThis cannot be undone.')">
                 @csrf @method('PATCH')
                 <button type="submit"
                         class="px-3.5 py-2 text-sm font-medium rounded-lg border border-red-200 text-red-600 bg-white hover:bg-red-50 transition-colors">
@@ -105,7 +105,7 @@
                         <x-status-badge :status="$inv->status" />
                     </div>
                 @empty
-                    <p class="text-xs text-gray-400">No invoices yet.</p>
+                    <p class="text-xs text-gray-400">No billing statements yet.</p>
                 @endforelse
             </div>
 

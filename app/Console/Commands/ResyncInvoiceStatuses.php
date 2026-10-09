@@ -6,14 +6,14 @@ use App\Models\Invoice;
 use Illuminate\Console\Command;
 
 /**
- * One-time (and on-demand) command to resync all invoice statuses
+ * One-time (and on-demand) command to resync all billing statement statuses
  * from their tenant payment rows. Run this after any bulk data
  * changes or after updating billing logic.
  */
 class ResyncInvoiceStatuses extends Command
 {
     protected $signature   = 'invoices:resync-statuses';
-    protected $description = 'Resync all invoice statuses from tenant payment rows';
+    protected $description = 'Resync all billing statement statuses from tenant payment rows';
 
     public function handle(): void
     {
@@ -28,6 +28,6 @@ class ResyncInvoiceStatuses extends Command
 
         $bar->finish();
         $this->newLine();
-        $this->info("Resynced {$invoices->count()} invoice(s).");
+        $this->info("Resynced {$invoices->count()} billing statement(s).");
     }
 }

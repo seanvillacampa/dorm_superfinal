@@ -238,7 +238,7 @@
                                                 'pending' => 'Pending',
                                                 'maintenance' => 'Maintenance',
                                                 'vacant' => 'Vacant',
-                                                default => 'No invoice',
+                                                default => 'No billing statement',
                                             };
                                             
                                             // Get all tenant names

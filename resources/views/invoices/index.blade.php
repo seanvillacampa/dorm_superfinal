@@ -99,7 +99,7 @@
             <a href="{{ route('invoices.index', ['month' => $month]) }}"
                class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M15 19l-7-7 7-7"/></svg>
-                Back to invoices
+                Back to billing statements
             </a>
         </div>
 
@@ -107,7 +107,7 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-gray-100 text-xs text-gray-400 font-medium uppercase tracking-wide">
-                        <th class="px-4 py-3 text-left">Invoice</th>
+                        <th class="px-4 py-3 text-left">Statement</th>
                         <th class="px-4 py-3 text-left">Room</th>
                         <th class="px-4 py-3 text-left">Tenants</th>
                         <th class="px-4 py-3 text-left">Due</th>
@@ -146,7 +146,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="px-4 py-10 text-center text-sm text-gray-400">No invoices for this month.</td></tr>
+                        <tr><td colspan="8" class="px-4 py-10 text-center text-sm text-gray-400">No billing statements for this month.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -155,14 +155,14 @@
             </div>
         </div>
 
-    {{-- ── MAIN INVOICE LIST ────────────────────────────────────────────── --}}
+    {{-- ── MAIN BILLING STATEMENT LIST ────────────────────────────────────────────── --}}
     @else
 
         <div class="bg-white rounded-xl border border-gray-200 shadow-xs overflow-hidden">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-gray-100 text-xs text-gray-400 font-medium uppercase tracking-wide">
-                        <th class="px-4 py-3 text-left">Invoice #</th>
+                        <th class="px-4 py-3 text-left">Statement #</th>
                         <th class="px-4 py-3 text-left">Room</th>
                         <th class="px-4 py-3 text-left">Billing month</th>
                         <th class="px-4 py-3 text-left">Due date</th>
@@ -217,10 +217,10 @@
                         <tr>
                             <td colspan="9" class="px-4 py-10 text-center text-sm text-gray-400">
                                 @if($search || $status)
-                                    No invoices match your filters.
+                                    No billing statements match your filters.
                                     <a href="{{ route('invoices.index', ['month'=>$month]) }}" class="text-blue-600 hover:underline ml-1">Clear filters</a>
                                 @else
-                                    No invoices for {{ now()->parse($month)->format('F Y') }} yet.
+                                    No billing statements for {{ now()->parse($month)->format('F Y') }} yet.
                                 @endif
                             </td>
                         </tr>
@@ -230,7 +230,7 @@
             <div class="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
                 <p class="text-xs text-gray-400">
                     Showing {{ $invoices->firstItem() ?? 0 }}–{{ $invoices->lastItem() ?? 0 }}
-                    of {{ $invoices->total() }} invoice(s)
+                    of {{ $invoices->total() }} billing statement(s)
                     @if($status || $search) · filtered @endif
                 </p>
                 {{ $invoices->links('vendor.pagination.simple-tailwind') }}

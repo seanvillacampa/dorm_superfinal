@@ -5,14 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * One invoice per room per billing month.
+ * One billing statement per room per billing month.
  *
  * Status is derived from tenantPayments:
  *   paid     — ALL tenants paid
  *   partial  — SOME tenants paid, others haven't (regardless of their status)
- *   late     — NO one paid, invoice is within the grace period
+ *   late     — NO one paid, billing statement is within the grace period
  *   overdue  — NO one paid, grace period has ended
- *   pending  — NO one paid, due date not yet reached (invoice just created)
+ *   pending  — NO one paid, due date not yet reached (billing statement just created)
  *   void     — cancelled
  */
 class Invoice extends Model
@@ -112,7 +112,7 @@ class Invoice extends Model
     }
 
     /**
-     * Recompute the invoice-level status from its tenant payment rows.
+     * Recompute the billing statement-level status from its tenant payment rows.
      *
      * Rules (in order of priority):
      *   paid    — every tenant paid
@@ -121,10 +121,10 @@ class Invoice extends Model
      *   pending — nobody paid AND all tenant payments are "pending"
      *
      * This method first recomputes each TenantPayment status individually,
-     * then aggregates them to determine the invoice-level status.
+     * then aggregates them to determine the billing statement-level status.
      * 
-     * If invoice becomes fully paid and has carry_over_balance, it will
-     * automatically mark all older unpaid invoices as paid.
+     * If billing statement becomes fully paid and has carry_over_balance, it will
+     * automatically mark all older unpaid billing statements as paid.
      */
     public function recomputeStatus(): void
     {
@@ -147,8 +147,8 @@ class Invoice extends Model
         if ($paid === $total) {
             $status = 'paid';
             
-            // ── CASCADE PAYMENT: If this invoice included carry_over_balance
-            // and is now fully paid, mark all older unpaid invoices as paid
+            // ── CASCADE PAYMENT: If this billing statement included carry_over_balance
+            // and is now fully paid, mark all older unpaid billing statements as paid
             if (($this->carry_over_balance ?? 0) > 0) {
                 $this->cascadePaymentToOlderInvoices();
             }
@@ -172,20 +172,20 @@ class Invoice extends Model
     }
 
     /**
-     * Cascade payment to all older unpaid invoices.
+     * Cascade payment to all older unpaid billing statements.
      * 
-     * This is called when an invoice with carry_over_balance is fully paid,
+     * This is called when a billing statement with carry_over_balance is fully paid,
      * meaning tenants have paid for their current month PLUS all past unpaid amounts.
      * 
-     * For each tenant who paid their share in this invoice, mark all their
-     * older unpaid invoices as paid.
+     * For each tenant who paid their share in this billing statement, mark all their
+     * older unpaid billing statements as paid.
      */
     private function cascadePaymentToOlderInvoices(): void
     {
         $tenantsPaid = $this->tenantPayments->where('status', 'paid');
         
         foreach ($tenantsPaid as $tenantPay) {
-            // Find all older unpaid invoices for this tenant
+            // Find all older unpaid billing statements for this tenant
             $olderUnpaidInvoices = TenantPayment::where('tenant_id', $tenantPay->tenant_id)
                 ->whereHas('invoice', function($q) {
                     $q->where('contract_id', $this->contract_id)
@@ -206,14 +206,14 @@ class Invoice extends Model
                     'paid_at' => now(),
                 ]);
                 
-                \Log::info('Cascaded payment to older invoice', [
+                \Log::info('Cascaded payment to older billing statement', [
                     'tenant_id' => $tenantPay->tenant_id,
                     'old_invoice' => $oldTenantPay->invoice->invoice_number,
                     'billing_month' => $oldTenantPay->invoice->billing_month,
                     'triggered_by' => $this->invoice_number,
                 ]);
                 
-                // Recompute the old invoice's status
+                // Recompute the old billing statement's status
                 $oldTenantPay->invoice->refresh();
                 $oldTenantPay->invoice->recomputeStatusWithoutCascade();
             }
@@ -222,7 +222,7 @@ class Invoice extends Model
 
     /**
      * Recompute status without triggering cascade logic.
-     * Used when updating old invoices to avoid infinite loops.
+     * Used when updating old billing statements to avoid infinite loops.
      */
     private function recomputeStatusWithoutCascade(): void
     {

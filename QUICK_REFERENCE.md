@@ -104,11 +104,11 @@ npm run build
 - [ ] Login as admin
 - [ ] Login as tenant (different browser/incognito)
 - [ ] Open ngrok dashboard
-- [ ] Show unpaid invoice
+- [ ] Show unpaid billing statement
 - [ ] Make payment
 - [ ] Show webhook received
 - [ ] Show payment recorded
-- [ ] Show invoice updated
+- [ ] Show billing statement updated
 
 ---
 

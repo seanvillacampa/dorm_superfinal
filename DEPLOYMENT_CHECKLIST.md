@@ -197,12 +197,12 @@ Take screenshots in case of demo issues:
 
 - [ ] Dashboard overview
 - [ ] Rooms page with statuses
-- [ ] Create invoice page
+- [ ] Create billing statement page
 - [ ] Tenant bill page
 - [ ] PayMongo payment success page
 - [ ] ngrok dashboard with webhook
 - [ ] Admin panel showing payment recorded
-- [ ] Invoice status changed to "paid"
+- [ ] Billing statement status changed to "paid"
 
 ---
 

@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('invoices', function (Blueprint $table) {
             $table->id();
-            $table->string('invoice_number', 30)->unique(); // INV-2609-101
+            $table->string('invoice_number', 30)->unique(); // BILL-2609-101
             $table->foreignId('contract_id')->constrained()->cascadeOnDelete();
             $table->string('billing_month', 7); // "2026-09"
             $table->date('due_date');

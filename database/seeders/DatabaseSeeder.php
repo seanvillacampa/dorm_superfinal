@@ -277,7 +277,7 @@ class DatabaseSeeder extends Seeder
                 $effectiveShare = round($effectiveTotal / $occupancy, 2);
 
                 $invoice = Invoice::create([
-                    'invoice_number'     => 'INV-' . str_replace('-','',substr($billingMonth,2)) . '-' . $roomNo,
+                    'invoice_number'     => 'BILL-' . str_replace('-','',substr($billingMonth,2)) . '-' . $roomNo,
                     'contract_id'        => $contract->id,
                     'tenant_count'       => $occupancy,
                     'billing_month'      => $billingMonth,

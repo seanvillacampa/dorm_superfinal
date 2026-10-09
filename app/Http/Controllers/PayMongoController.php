@@ -214,7 +214,7 @@ class PayMongoController extends Controller
                             $oldInv->refresh();
                             $oldInv->recomputeStatus();
                             
-                            Log::info('PayMongo: Cascaded payment to older invoice', [
+                            Log::info('PayMongo: Cascaded payment to older billing statement', [
                                 'old_invoice' => $oldInv->invoice_number,
                                 'tenant_id'   => $tenantPay->tenant_id,
                             ]);
@@ -285,9 +285,9 @@ class PayMongoController extends Controller
             }
         }
 
-        // Strategy 3: invoice number in description
+        // Strategy 3: billing statement number in description
         $description = $attrs['description'] ?? '';
-        if (preg_match('/INV-[\w-]+/', $description, $m)) {
+        if (preg_match('/BILL-[\w-]+/', $description, $m)) {
             $invoice = Invoice::where('invoice_number', $m[0])->first();
             if ($invoice) {
                 Log::info('PayMongo: matched via description regex', ['match' => $m[0]]);
@@ -310,7 +310,7 @@ class PayMongoController extends Controller
             }
         }
 
-        Log::warning('PayMongo: could not match invoice with any strategy', [
+        Log::warning('PayMongo: could not match billing statement with any strategy', [
             'link_id'     => $linkId,
             'remarks'     => $remarks ?? null,
             'description' => $description,

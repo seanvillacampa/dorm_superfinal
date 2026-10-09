@@ -210,7 +210,7 @@ $tp->update([
     'paid_at' => now(),
 ]);
 
-// Recompute invoice status
+// Recompute billing statement status
 $tp->invoice->recomputeStatus();
 
 echo "✅ Manually marked as paid!";

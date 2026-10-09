@@ -10,9 +10,9 @@
                     Default: navigate to current page with ?month= param.
 
     Status icons:
-      [✓] green  — invoices exist for all active rooms
-      [–] yellow — invoices exist for some rooms (partial)
-      [✕] red    — no invoices at all
+      [✓] green  — billing statements exist for all active rooms
+      [–] yellow — billing statements exist for some rooms (partial)
+      [✕] red    — no billing statements at all
 --}}
 @props([
     'coverage'   => collect(),
@@ -59,9 +59,9 @@
         @foreach($coverage as $ym => $info)
             @php
                 $icon = match($info['status']) {
-                    'all'     => ['sym' => '[✓]', 'cls' => 'text-green-500',  'title' => "All {$info['total']} invoices generated"],
-                    'partial' => ['sym' => '[–]', 'cls' => 'text-yellow-500', 'title' => "{$info['count']} of {$info['total']} invoices generated"],
-                    default   => ['sym' => '[✕]', 'cls' => 'text-red-500',    'title' => 'No invoices generated'],
+                    'all'     => ['sym' => '[✓]', 'cls' => 'text-green-500',  'title' => "All {$info['total']} billing statements generated"],
+                    'partial' => ['sym' => '[–]', 'cls' => 'text-yellow-500', 'title' => "{$info['count']} of {$info['total']} billing statements generated"],
+                    default   => ['sym' => '[✕]', 'cls' => 'text-red-500',    'title' => 'No billing statements generated'],
                 };
             @endphp
             <button type="button"
@@ -89,7 +89,7 @@
         <div class="border-t border-gray-100 mt-1 px-3 py-2 space-y-1">
             <p class="text-[10px] text-gray-400 flex items-center gap-1.5"><span class="font-bold text-green-500">[✓]</span> All rooms invoiced</p>
             <p class="text-[10px] text-gray-400 flex items-center gap-1.5"><span class="font-bold text-yellow-500">[–]</span> Partially invoiced</p>
-            <p class="text-[10px] text-gray-400 flex items-center gap-1.5"><span class="font-bold text-red-500">[✕]</span> No invoices yet</p>
+            <p class="text-[10px] text-gray-400 flex items-center gap-1.5"><span class="font-bold text-red-500">[✕]</span> No billing statements yet</p>
         </div>
     </div>
 
